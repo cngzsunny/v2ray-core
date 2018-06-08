@@ -3,17 +3,17 @@ package http
 import (
 	"context"
 	gotls "crypto/tls"
-	"io"
 	"net/http"
 	"net/url"
 	"sync"
 
 	"golang.org/x/net/http2"
-
 	"v2ray.com/core/common"
+	"v2ray.com/core/common/buf"
 	"v2ray.com/core/common/net"
 	"v2ray.com/core/transport/internet"
 	"v2ray.com/core/transport/internet/tls"
+	"v2ray.com/core/transport/pipe"
 )
 
 var (
@@ -83,11 +83,13 @@ func Dial(ctx context.Context, dest net.Destination) (internet.Connection, error
 		return nil, err
 	}
 
-	preader, pwriter := io.Pipe()
+	opts := pipe.OptionsFromContext(ctx)
+	preader, pwriter := pipe.New(opts...)
+	breader := &buf.BufferedReader{Reader: preader}
 	request := &http.Request{
 		Method: "PUT",
 		Host:   httpSettings.getRandomHost(),
-		Body:   preader,
+		Body:   breader,
 		URL: &url.URL{
 			Scheme: "https",
 			Host:   dest.NetAddr(),
@@ -96,7 +98,11 @@ func Dial(ctx context.Context, dest net.Destination) (internet.Connection, error
 		Proto:      "HTTP/2",
 		ProtoMajor: 2,
 		ProtoMinor: 0,
+		Header:     make(http.Header),
 	}
+	// Disable any compression method from server.
+	request.Header.Set("Accept-Encoding", "identity")
+
 	response, err := client.Do(request)
 	if err != nil {
 		return nil, newError("failed to dial to ", dest).Base(err).AtWarning()
@@ -105,19 +111,13 @@ func Dial(ctx context.Context, dest net.Destination) (internet.Connection, error
 		return nil, newError("unexpected status", response.StatusCode).AtWarning()
 	}
 
-	return &Connection{
-		Reader: response.Body,
-		Writer: pwriter,
-		Closer: common.NewChainedClosable(preader, pwriter, response.Body),
-		Local: &net.TCPAddr{
-			IP:   []byte{0, 0, 0, 0},
-			Port: 0,
-		},
-		Remote: &net.TCPAddr{
-			IP:   []byte{0, 0, 0, 0},
-			Port: 0,
-		},
-	}, nil
+	bwriter := buf.NewBufferedWriter(pwriter)
+	common.Must(bwriter.SetBuffered(false))
+	return net.NewConnection(
+		net.ConnectionOutput(response.Body),
+		net.ConnectionInput(bwriter),
+		net.ConnectionOnClose(common.NewChainedClosable(breader, bwriter, response.Body)),
+	), nil
 }
 
 func init() {

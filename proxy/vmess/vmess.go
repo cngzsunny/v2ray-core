@@ -14,7 +14,7 @@ import (
 
 	"v2ray.com/core/common"
 	"v2ray.com/core/common/protocol"
-	"v2ray.com/core/common/signal"
+	"v2ray.com/core/common/task"
 )
 
 const (
@@ -34,7 +34,7 @@ type TimedUserValidator struct {
 	userHash map[[16]byte]indexTimePair
 	hasher   protocol.IDHash
 	baseTime protocol.Timestamp
-	task     *signal.PeriodicTask
+	task     *task.Periodic
 }
 
 type indexTimePair struct {
@@ -42,21 +42,21 @@ type indexTimePair struct {
 	timeInc uint32
 }
 
-func NewTimedUserValidator(hasher protocol.IDHash) protocol.UserValidator {
+func NewTimedUserValidator(hasher protocol.IDHash) *TimedUserValidator {
 	tuv := &TimedUserValidator{
 		users:    make([]*user, 0, 16),
 		userHash: make(map[[16]byte]indexTimePair, 1024),
 		hasher:   hasher,
 		baseTime: protocol.Timestamp(time.Now().Unix() - cacheDurationSec*2),
 	}
-	tuv.task = &signal.PeriodicTask{
+	tuv.task = &task.Periodic{
 		Interval: updateInterval,
 		Execute: func() error {
 			tuv.updateUserHash()
 			return nil
 		},
 	}
-	tuv.task.Start()
+	common.Must(tuv.task.Start())
 	return tuv
 }
 

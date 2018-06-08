@@ -9,6 +9,7 @@ import (
 	"v2ray.com/core/common"
 	"v2ray.com/core/common/dice"
 	"v2ray.com/core/common/net"
+	"v2ray.com/core/common/serial"
 	"v2ray.com/core/proxy"
 )
 
@@ -103,6 +104,7 @@ func NewAlwaysOnInboundHandler(ctx context.Context, tag string, receiverConfig *
 	return h, nil
 }
 
+// Start implements common.Runnable.
 func (h *AlwaysOnInboundHandler) Start() error {
 	for _, worker := range h.workers {
 		if err := worker.Start(); err != nil {
@@ -112,11 +114,20 @@ func (h *AlwaysOnInboundHandler) Start() error {
 	return nil
 }
 
+// Close implements common.Closable.
 func (h *AlwaysOnInboundHandler) Close() error {
+	var errors []interface{}
 	for _, worker := range h.workers {
-		worker.Close()
+		if err := worker.Close(); err != nil {
+			errors = append(errors, err)
+		}
 	}
-	h.mux.Close()
+	if err := h.mux.Close(); err != nil {
+		errors = append(errors, err)
+	}
+	if len(errors) > 0 {
+		return newError("failed to close all resources").Base(newError(serial.Concat(errors...)))
+	}
 	return nil
 }
 

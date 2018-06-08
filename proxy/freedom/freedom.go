@@ -13,9 +13,9 @@ import (
 	"v2ray.com/core/common/net"
 	"v2ray.com/core/common/retry"
 	"v2ray.com/core/common/signal"
+	"v2ray.com/core/common/task"
 	"v2ray.com/core/proxy"
 	"v2ray.com/core/transport/internet"
-	"v2ray.com/core/transport/ray"
 )
 
 // Handler handles Freedom connections.
@@ -65,7 +65,7 @@ func (h *Handler) resolveIP(ctx context.Context, domain string) net.Address {
 }
 
 // Process implements proxy.Outbound.
-func (h *Handler) Process(ctx context.Context, outboundRay ray.OutboundRay, dialer proxy.Dialer) error {
+func (h *Handler) Process(ctx context.Context, link *core.Link, dialer proxy.Dialer) error {
 	destination, _ := proxy.TargetFromContext(ctx)
 	if h.config.DestinationOverride != nil {
 		server := h.config.DestinationOverride.Server
@@ -77,8 +77,8 @@ func (h *Handler) Process(ctx context.Context, outboundRay ray.OutboundRay, dial
 	}
 	newError("opening connection to ", destination).WithContext(ctx).WriteToLog()
 
-	input := outboundRay.OutboundInput()
-	output := outboundRay.OutboundOutput()
+	input := link.Reader
+	output := link.Writer
 
 	if h.config.DomainStrategy == Config_USE_IP && destination.Address.Family().IsDomain() {
 		ip := h.resolveIP(ctx, destination.Address.Domain())
@@ -136,9 +136,7 @@ func (h *Handler) Process(ctx context.Context, outboundRay ray.OutboundRay, dial
 		return nil
 	}
 
-	if err := signal.ExecuteParallel(ctx, requestDone, responseDone); err != nil {
-		input.CloseError()
-		output.CloseError()
+	if err := task.Run(task.WithContext(ctx), task.Parallel(requestDone, task.Single(responseDone, task.OnSuccess(task.Close(output)))))(); err != nil {
 		return newError("connection ends").Base(err)
 	}
 

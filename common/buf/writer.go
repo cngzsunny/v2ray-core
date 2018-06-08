@@ -12,13 +12,6 @@ type BufferToBytesWriter struct {
 	io.Writer
 }
 
-// NewBufferToBytesWriter returns a new BufferToBytesWriter.
-func NewBufferToBytesWriter(writer io.Writer) *BufferToBytesWriter {
-	return &BufferToBytesWriter{
-		Writer: writer,
-	}
-}
-
 // WriteMultiBuffer implements Writer. This method takes ownership of the given buffer.
 func (w *BufferToBytesWriter) WriteMultiBuffer(mb MultiBuffer) error {
 	defer mb.Release()
@@ -113,7 +106,16 @@ func (w *BufferedWriter) WriteMultiBuffer(b MultiBuffer) error {
 // Flush flushes buffered content into underlying writer.
 func (w *BufferedWriter) Flush() error {
 	if !w.buffer.IsEmpty() {
-		if err := w.writer.WriteMultiBuffer(NewMultiBufferValue(w.buffer)); err != nil {
+		b := w.buffer
+		w.buffer = nil
+
+		if writer, ok := w.writer.(io.Writer); ok {
+			_, err := writer.Write(b.Bytes())
+			b.Release()
+			if err != nil {
+				return err
+			}
+		} else if err := w.writer.WriteMultiBuffer(NewMultiBufferValue(b)); err != nil {
 			return err
 		}
 
@@ -140,6 +142,14 @@ func (w *BufferedWriter) ReadFrom(reader io.Reader) (int64, error) {
 	var sc SizeCounter
 	err := Copy(NewReader(reader), w, CountSize(&sc))
 	return sc.Size, err
+}
+
+// Close implements io.Closable.
+func (w *BufferedWriter) Close() error {
+	if err := w.Flush(); err != nil {
+		return err
+	}
+	return common.Close(w.writer)
 }
 
 type seqWriter struct {

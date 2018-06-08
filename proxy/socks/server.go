@@ -5,6 +5,8 @@ import (
 	"io"
 	"time"
 
+	"v2ray.com/core/common/task"
+
 	"v2ray.com/core"
 	"v2ray.com/core/common"
 	"v2ray.com/core/common/buf"
@@ -15,6 +17,7 @@ import (
 	"v2ray.com/core/proxy"
 	"v2ray.com/core/transport/internet"
 	"v2ray.com/core/transport/internet/udp"
+	"v2ray.com/core/transport/pipe"
 )
 
 // Server is a SOCKS 5 proxy server
@@ -69,7 +72,7 @@ func (s *Server) processTCP(ctx context.Context, conn internet.Connection, dispa
 		newError("failed to set deadline").Base(err).WithContext(ctx).WriteToLog()
 	}
 
-	reader := buf.NewBufferedReader(buf.NewReader(conn))
+	reader := &buf.BufferedReader{Reader: buf.NewReader(conn)}
 
 	inboundDest, ok := proxy.InboundEntryPointFromContext(ctx)
 	if !ok {
@@ -129,20 +132,18 @@ func (s *Server) transport(ctx context.Context, reader io.Reader, writer io.Writ
 	ctx, cancel := context.WithCancel(ctx)
 	timer := signal.CancelAfterInactivity(ctx, cancel, s.policy().Timeouts.ConnectionIdle)
 
-	ray, err := dispatcher.Dispatch(ctx, dest)
+	plcy := s.policy()
+	ctx = core.ContextWithBufferPolicy(ctx, plcy.Buffer)
+	link, err := dispatcher.Dispatch(ctx, dest)
 	if err != nil {
 		return err
 	}
 
-	input := ray.InboundInput()
-	output := ray.InboundOutput()
-
 	requestDone := func() error {
-		defer timer.SetTimeout(s.policy().Timeouts.DownlinkOnly)
-		defer input.Close()
+		defer timer.SetTimeout(plcy.Timeouts.DownlinkOnly)
 
 		v2reader := buf.NewReader(reader)
-		if err := buf.Copy(v2reader, input, buf.UpdateActivity(timer)); err != nil {
+		if err := buf.Copy(v2reader, link.Writer, buf.UpdateActivity(timer)); err != nil {
 			return newError("failed to transport all TCP request").Base(err)
 		}
 
@@ -150,19 +151,20 @@ func (s *Server) transport(ctx context.Context, reader io.Reader, writer io.Writ
 	}
 
 	responseDone := func() error {
-		defer timer.SetTimeout(s.policy().Timeouts.UplinkOnly)
+		defer timer.SetTimeout(plcy.Timeouts.UplinkOnly)
 
 		v2writer := buf.NewWriter(writer)
-		if err := buf.Copy(output, v2writer, buf.UpdateActivity(timer)); err != nil {
+		if err := buf.Copy(link.Reader, v2writer, buf.UpdateActivity(timer)); err != nil {
 			return newError("failed to transport all TCP response").Base(err)
 		}
 
 		return nil
 	}
 
-	if err := signal.ExecuteParallel(ctx, requestDone, responseDone); err != nil {
-		input.CloseError()
-		output.CloseError()
+	var requestDonePost = task.Single(requestDone, task.OnSuccess(task.Close(link.Writer)))
+	if err := task.Run(task.WithContext(ctx), task.Parallel(requestDonePost, responseDone))(); err != nil {
+		pipe.CloseError(link.Reader)
+		pipe.CloseError(link.Writer)
 		return newError("connection ends").Base(err)
 	}
 
@@ -201,7 +203,7 @@ func (s *Server) handleUDPPayload(ctx context.Context, conn internet.Connection,
 			if source, ok := proxy.SourceFromContext(ctx); ok {
 				log.Record(&log.AccessMessage{
 					From:   source,
-					To:     request.Destination,
+					To:     request.Destination(),
 					Status: log.AccessAccepted,
 					Reason: "",
 				})
@@ -218,7 +220,7 @@ func (s *Server) handleUDPPayload(ctx context.Context, conn internet.Connection,
 					newError("failed to write UDP response").AtWarning().Base(err).WithContext(ctx).WriteToLog()
 				}
 
-				conn.Write(udpMessage.Bytes())
+				conn.Write(udpMessage.Bytes()) // nolint: errcheck
 			})
 		}
 	}

@@ -47,6 +47,9 @@ func ReadAllToBytes(reader io.Reader) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
+	if mb.Len() == 0 {
+		return nil, nil
+	}
 	b := make([]byte, mb.Len())
 	common.Must2(mb.Read(b))
 	mb.Release()
@@ -172,10 +175,20 @@ func (mb *MultiBuffer) Write(b []byte) (int, error) {
 	return totalBytes, nil
 }
 
+// WriteMultiBuffer implements Writer.
+func (mb *MultiBuffer) WriteMultiBuffer(b MultiBuffer) error {
+	*mb = append(*mb, b...)
+	return nil
+}
+
 // Len returns the total number of bytes in the MultiBuffer.
-func (mb MultiBuffer) Len() int32 {
+func (mb *MultiBuffer) Len() int32 {
+	if mb == nil {
+		return 0
+	}
+
 	size := int32(0)
-	for _, b := range mb {
+	for _, b := range *mb {
 		size += b.Len()
 	}
 	return size

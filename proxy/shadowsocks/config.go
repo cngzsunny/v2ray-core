@@ -146,7 +146,7 @@ func (v *AesCfb) DecodePacket(key []byte, b *buf.Buffer) error {
 	iv := b.BytesTo(v.IVSize())
 	stream := crypto.NewAesDecryptionStream(key, iv)
 	stream.XORKeyStream(b.BytesFrom(v.IVSize()), b.BytesFrom(v.IVSize()))
-	b.SliceFrom(v.IVSize())
+	b.Advance(v.IVSize())
 	return nil
 }
 
@@ -169,7 +169,7 @@ func (c *AEADCipher) IVSize() int32 {
 }
 
 func (c *AEADCipher) createAuthenticator(key []byte, iv []byte) *crypto.AEADAuthenticator {
-	nonce := crypto.NewIncreasingAEADNonceGenerator()
+	nonce := crypto.GenerateInitialAEADNonce()
 	subkey := make([]byte, c.KeyBytes)
 	hkdfSHA1(key, iv, subkey)
 	return &crypto.AEADAuthenticator{
@@ -221,7 +221,7 @@ func (c *AEADCipher) DecodePacket(key []byte, b *buf.Buffer) error {
 	}); err != nil {
 		return err
 	}
-	b.SliceFrom(ivLen)
+	b.Advance(ivLen)
 	return nil
 }
 
@@ -265,7 +265,7 @@ func (v *ChaCha20) DecodePacket(key []byte, b *buf.Buffer) error {
 	iv := b.BytesTo(v.IVSize())
 	stream := crypto.NewChaCha20Stream(key, iv)
 	stream.XORKeyStream(b.BytesFrom(v.IVSize()), b.BytesFrom(v.IVSize()))
-	b.SliceFrom(v.IVSize())
+	b.Advance(v.IVSize())
 	return nil
 }
 

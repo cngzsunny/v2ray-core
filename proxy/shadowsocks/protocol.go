@@ -52,7 +52,7 @@ func ReadTCPSession(user *protocol.User, reader io.Reader) (*protocol.RequestHea
 	if err != nil {
 		return nil, nil, newError("failed to initialize decoding stream").Base(err).AtError()
 	}
-	br := buf.NewBufferedReader(r)
+	br := &buf.BufferedReader{Reader: r}
 	reader = nil
 
 	authenticator := NewAuthenticator(HeaderKeyGenerator(account.Key, iv))
@@ -109,7 +109,7 @@ func ReadTCPSession(user *protocol.User, reader io.Reader) (*protocol.RequestHea
 		return nil, nil, newError("invalid remote address.")
 	}
 
-	br.SetBuffered(false)
+	br.Direct = true
 
 	var chunkReader buf.Reader
 	if request.Option.Has(RequestOptionOneTimeAuth) {
@@ -232,7 +232,7 @@ func EncodeUDPPacket(request *protocol.RequestHeader, payload []byte) (*buf.Buff
 		return nil, newError("failed to write address").Base(err)
 	}
 
-	buffer.Append(payload)
+	buffer.Write(payload)
 
 	if !account.Cipher.IsAEAD() && request.Option.Has(RequestOptionOneTimeAuth) {
 		authenticator := NewAuthenticator(HeaderKeyGenerator(account.Key, iv))
@@ -295,7 +295,7 @@ func DecodeUDPPacket(user *protocol.User, payload *buf.Buffer) (*protocol.Reques
 				return nil, nil, newError("invalid OTA")
 			}
 
-			payload.Slice(0, payloadLen)
+			payload.Resize(0, payloadLen)
 		}
 	}
 

@@ -10,7 +10,7 @@ import (
 	"v2ray.com/core/app/proxyman/mux"
 	"v2ray.com/core/common/dice"
 	"v2ray.com/core/common/net"
-	"v2ray.com/core/common/signal"
+	"v2ray.com/core/common/task"
 	"v2ray.com/core/proxy"
 )
 
@@ -25,7 +25,7 @@ type DynamicInboundHandler struct {
 	worker         []worker
 	lastRefresh    time.Time
 	mux            *mux.Server
-	task           *signal.PeriodicTask
+	task           *task.Periodic
 }
 
 func NewDynamicInboundHandler(ctx context.Context, tag string, receiverConfig *proxyman.ReceiverConfig, proxyConfig interface{}) (*DynamicInboundHandler, error) {
@@ -39,7 +39,7 @@ func NewDynamicInboundHandler(ctx context.Context, tag string, receiverConfig *p
 		v:              v,
 	}
 
-	h.task = &signal.PeriodicTask{
+	h.task = &task.Periodic{
 		Interval: time.Minute * time.Duration(h.receiverConfig.AllocationStrategy.GetRefreshValue()),
 		Execute:  h.refresh,
 	}
@@ -69,7 +69,9 @@ func (h *DynamicInboundHandler) closeWorkers(workers []worker) {
 	ports2Del := make([]net.Port, len(workers))
 	for idx, worker := range workers {
 		ports2Del[idx] = worker.Port()
-		worker.Close()
+		if err := worker.Close(); err != nil {
+			newError("failed to close worker").Base(err).WriteToLog()
+		}
 	}
 
 	h.portMutex.Lock()
@@ -95,7 +97,7 @@ func (h *DynamicInboundHandler) refresh() error {
 
 	for i := uint32(0); i < concurrency; i++ {
 		port := h.allocatePort()
-		rawProxy, err := h.v.CreateObject(h.proxyConfig)
+		rawProxy, err := core.CreateObject(h.v, h.proxyConfig)
 		if err != nil {
 			newError("failed to create proxy instance").Base(err).AtWarning().WriteToLog()
 			continue
