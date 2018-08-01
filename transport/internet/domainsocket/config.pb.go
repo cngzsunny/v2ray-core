@@ -17,10 +17,10 @@ const _ = proto.ProtoPackageIsVersion2 // please upgrade the proto package
 
 type Config struct {
 	// Path of the domain socket. This overrides the IP/Port parameter from upstream caller.
-	Path string `protobuf:"bytes,1,opt,name=path" json:"path,omitempty"`
+	Path string `protobuf:"bytes,1,opt,name=path,proto3" json:"path,omitempty"`
 	// Abstract speicifies whether to use abstract namespace or not.
 	// Traditionally Unix domain socket is file system based. Abstract domain socket can be used without acquiring file lock.
-	Abstract             bool     `protobuf:"varint,2,opt,name=abstract" json:"abstract,omitempty"`
+	Abstract             bool     `protobuf:"varint,2,opt,name=abstract,proto3" json:"abstract,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
 	XXX_sizecache        int32    `json:"-"`
@@ -30,7 +30,7 @@ func (m *Config) Reset()         { *m = Config{} }
 func (m *Config) String() string { return proto.CompactTextString(m) }
 func (*Config) ProtoMessage()    {}
 func (*Config) Descriptor() ([]byte, []int) {
-	return fileDescriptor_config_66b14c087c0230f8, []int{0}
+	return fileDescriptor_config_f3159b9c61268147, []int{0}
 }
 func (m *Config) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_Config.Unmarshal(m, b)
@@ -69,10 +69,10 @@ func init() {
 }
 
 func init() {
-	proto.RegisterFile("v2ray.com/core/transport/internet/domainsocket/config.proto", fileDescriptor_config_66b14c087c0230f8)
+	proto.RegisterFile("v2ray.com/core/transport/internet/domainsocket/config.proto", fileDescriptor_config_f3159b9c61268147)
 }
 
-var fileDescriptor_config_66b14c087c0230f8 = []byte{
+var fileDescriptor_config_f3159b9c61268147 = []byte{
 	// 189 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xe2, 0xb2, 0x2e, 0x33, 0x2a, 0x4a,
 	0xac, 0xd4, 0x4b, 0xce, 0xcf, 0xd5, 0x4f, 0xce, 0x2f, 0x4a, 0xd5, 0x2f, 0x29, 0x4a, 0xcc, 0x2b,

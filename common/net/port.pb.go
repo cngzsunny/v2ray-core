@@ -18,9 +18,9 @@ const _ = proto.ProtoPackageIsVersion2 // please upgrade the proto package
 // PortRange represents a range of ports.
 type PortRange struct {
 	// The port that this range starts from.
-	From uint32 `protobuf:"varint,1,opt,name=From" json:"From,omitempty"`
+	From uint32 `protobuf:"varint,1,opt,name=From,proto3" json:"From,omitempty"`
 	// The port that this range ends with (inclusive).
-	To                   uint32   `protobuf:"varint,2,opt,name=To" json:"To,omitempty"`
+	To                   uint32   `protobuf:"varint,2,opt,name=To,proto3" json:"To,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
 	XXX_sizecache        int32    `json:"-"`
@@ -30,7 +30,7 @@ func (m *PortRange) Reset()         { *m = PortRange{} }
 func (m *PortRange) String() string { return proto.CompactTextString(m) }
 func (*PortRange) ProtoMessage()    {}
 func (*PortRange) Descriptor() ([]byte, []int) {
-	return fileDescriptor_port_8c6b320a9a741caa, []int{0}
+	return fileDescriptor_port_673e4083b7b87399, []int{0}
 }
 func (m *PortRange) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_PortRange.Unmarshal(m, b)
@@ -69,10 +69,10 @@ func init() {
 }
 
 func init() {
-	proto.RegisterFile("v2ray.com/core/common/net/port.proto", fileDescriptor_port_8c6b320a9a741caa)
+	proto.RegisterFile("v2ray.com/core/common/net/port.proto", fileDescriptor_port_673e4083b7b87399)
 }
 
-var fileDescriptor_port_8c6b320a9a741caa = []byte{
+var fileDescriptor_port_673e4083b7b87399 = []byte{
 	// 158 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xe2, 0x52, 0x29, 0x33, 0x2a, 0x4a,
 	0xac, 0xd4, 0x4b, 0xce, 0xcf, 0xd5, 0x4f, 0xce, 0x2f, 0x4a, 0xd5, 0x4f, 0xce, 0xcf, 0xcd, 0xcd,

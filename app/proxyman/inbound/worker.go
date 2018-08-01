@@ -37,7 +37,7 @@ type tcpWorker struct {
 	recvOrigDest    bool
 	tag             string
 	dispatcher      core.Dispatcher
-	sniffers        []proxyman.KnownProtocols
+	sniffingConfig  *proxyman.SniffingConfig
 	uplinkCounter   core.StatCounter
 	downlinkCounter core.StatCounter
 
@@ -52,7 +52,7 @@ func (w *tcpWorker) callback(conn internet.Connection) {
 	if w.recvOrigDest {
 		dest, err := tcp.GetOriginalDestination(conn)
 		if err != nil {
-			newError("failed to get original destination").WithContext(ctx).Base(err).WriteToLog()
+			newError("failed to get original destination").Base(err).WriteToLog(session.ExportIDToError(ctx))
 		}
 		if dest.IsValid() {
 			ctx = proxy.ContextWithOriginalTarget(ctx, dest)
@@ -63,8 +63,8 @@ func (w *tcpWorker) callback(conn internet.Connection) {
 	}
 	ctx = proxy.ContextWithInboundEntryPoint(ctx, net.TCPDestination(w.address, w.port))
 	ctx = proxy.ContextWithSource(ctx, net.DestinationFromAddr(conn.RemoteAddr()))
-	if len(w.sniffers) > 0 {
-		ctx = proxyman.ContextWithProtocolSniffers(ctx, w.sniffers)
+	if w.sniffingConfig != nil {
+		ctx = proxyman.ContextWithSniffingConfig(ctx, w.sniffingConfig)
 	}
 	if w.uplinkCounter != nil || w.downlinkCounter != nil {
 		conn = &internet.StatCouterConnection{
@@ -74,11 +74,11 @@ func (w *tcpWorker) callback(conn internet.Connection) {
 		}
 	}
 	if err := w.proxy.Process(ctx, net.Network_TCP, conn, w.dispatcher); err != nil {
-		newError("connection ends").Base(err).WithContext(ctx).WriteToLog()
+		newError("connection ends").Base(err).WriteToLog(session.ExportIDToError(ctx))
 	}
 	cancel()
 	if err := conn.Close(); err != nil {
-		newError("failed to close connection").Base(err).WithContext(ctx).WriteToLog()
+		newError("failed to close connection").Base(err).WriteToLog(session.ExportIDToError(ctx))
 	}
 }
 

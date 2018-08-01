@@ -18,10 +18,10 @@ const _ = proto.ProtoPackageIsVersion2 // please upgrade the proto package
 
 // User is a generic user for all procotols.
 type User struct {
-	Level uint32 `protobuf:"varint,1,opt,name=level" json:"level,omitempty"`
-	Email string `protobuf:"bytes,2,opt,name=email" json:"email,omitempty"`
+	Level uint32 `protobuf:"varint,1,opt,name=level,proto3" json:"level,omitempty"`
+	Email string `protobuf:"bytes,2,opt,name=email,proto3" json:"email,omitempty"`
 	// Protocol specific account information. Must be the account proto in one of the proxies.
-	Account              *serial.TypedMessage `protobuf:"bytes,3,opt,name=account" json:"account,omitempty"`
+	Account              *serial.TypedMessage `protobuf:"bytes,3,opt,name=account,proto3" json:"account,omitempty"`
 	XXX_NoUnkeyedLiteral struct{}             `json:"-"`
 	XXX_unrecognized     []byte               `json:"-"`
 	XXX_sizecache        int32                `json:"-"`
@@ -31,7 +31,7 @@ func (m *User) Reset()         { *m = User{} }
 func (m *User) String() string { return proto.CompactTextString(m) }
 func (*User) ProtoMessage()    {}
 func (*User) Descriptor() ([]byte, []int) {
-	return fileDescriptor_user_a061b86ad22f3a1c, []int{0}
+	return fileDescriptor_user_f63d6be0dccd470d, []int{0}
 }
 func (m *User) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_User.Unmarshal(m, b)
@@ -77,10 +77,10 @@ func init() {
 }
 
 func init() {
-	proto.RegisterFile("v2ray.com/core/common/protocol/user.proto", fileDescriptor_user_a061b86ad22f3a1c)
+	proto.RegisterFile("v2ray.com/core/common/protocol/user.proto", fileDescriptor_user_f63d6be0dccd470d)
 }
 
-var fileDescriptor_user_a061b86ad22f3a1c = []byte{
+var fileDescriptor_user_f63d6be0dccd470d = []byte{
 	// 218 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xe2, 0xd2, 0x2c, 0x33, 0x2a, 0x4a,
 	0xac, 0xd4, 0x4b, 0xce, 0xcf, 0xd5, 0x4f, 0xce, 0x2f, 0x4a, 0xd5, 0x4f, 0xce, 0xcf, 0xcd, 0xcd,

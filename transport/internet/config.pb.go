@@ -48,14 +48,14 @@ func (x TransportProtocol) String() string {
 	return proto.EnumName(TransportProtocol_name, int32(x))
 }
 func (TransportProtocol) EnumDescriptor() ([]byte, []int) {
-	return fileDescriptor_config_6493eeef2ca10012, []int{0}
+	return fileDescriptor_config_027b4c7f353c31be, []int{0}
 }
 
 type TransportConfig struct {
 	// Type of network that this settings supports.
-	Protocol TransportProtocol `protobuf:"varint,1,opt,name=protocol,enum=v2ray.core.transport.internet.TransportProtocol" json:"protocol,omitempty"`
+	Protocol TransportProtocol `protobuf:"varint,1,opt,name=protocol,proto3,enum=v2ray.core.transport.internet.TransportProtocol" json:"protocol,omitempty"`
 	// Specific settings. Must be of the transports.
-	Settings             *serial.TypedMessage `protobuf:"bytes,2,opt,name=settings" json:"settings,omitempty"`
+	Settings             *serial.TypedMessage `protobuf:"bytes,2,opt,name=settings,proto3" json:"settings,omitempty"`
 	XXX_NoUnkeyedLiteral struct{}             `json:"-"`
 	XXX_unrecognized     []byte               `json:"-"`
 	XXX_sizecache        int32                `json:"-"`
@@ -65,7 +65,7 @@ func (m *TransportConfig) Reset()         { *m = TransportConfig{} }
 func (m *TransportConfig) String() string { return proto.CompactTextString(m) }
 func (*TransportConfig) ProtoMessage()    {}
 func (*TransportConfig) Descriptor() ([]byte, []int) {
-	return fileDescriptor_config_6493eeef2ca10012, []int{0}
+	return fileDescriptor_config_027b4c7f353c31be, []int{0}
 }
 func (m *TransportConfig) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_TransportConfig.Unmarshal(m, b)
@@ -101,12 +101,12 @@ func (m *TransportConfig) GetSettings() *serial.TypedMessage {
 
 type StreamConfig struct {
 	// Effective network.
-	Protocol          TransportProtocol  `protobuf:"varint,1,opt,name=protocol,enum=v2ray.core.transport.internet.TransportProtocol" json:"protocol,omitempty"`
-	TransportSettings []*TransportConfig `protobuf:"bytes,2,rep,name=transport_settings,json=transportSettings" json:"transport_settings,omitempty"`
+	Protocol          TransportProtocol  `protobuf:"varint,1,opt,name=protocol,proto3,enum=v2ray.core.transport.internet.TransportProtocol" json:"protocol,omitempty"`
+	TransportSettings []*TransportConfig `protobuf:"bytes,2,rep,name=transport_settings,json=transportSettings,proto3" json:"transport_settings,omitempty"`
 	// Type of security. Must be a message name of the settings proto.
-	SecurityType string `protobuf:"bytes,3,opt,name=security_type,json=securityType" json:"security_type,omitempty"`
+	SecurityType string `protobuf:"bytes,3,opt,name=security_type,json=securityType,proto3" json:"security_type,omitempty"`
 	// Settings for transport security. For now the only choice is TLS.
-	SecuritySettings     []*serial.TypedMessage `protobuf:"bytes,4,rep,name=security_settings,json=securitySettings" json:"security_settings,omitempty"`
+	SecuritySettings     []*serial.TypedMessage `protobuf:"bytes,4,rep,name=security_settings,json=securitySettings,proto3" json:"security_settings,omitempty"`
 	XXX_NoUnkeyedLiteral struct{}               `json:"-"`
 	XXX_unrecognized     []byte                 `json:"-"`
 	XXX_sizecache        int32                  `json:"-"`
@@ -116,7 +116,7 @@ func (m *StreamConfig) Reset()         { *m = StreamConfig{} }
 func (m *StreamConfig) String() string { return proto.CompactTextString(m) }
 func (*StreamConfig) ProtoMessage()    {}
 func (*StreamConfig) Descriptor() ([]byte, []int) {
-	return fileDescriptor_config_6493eeef2ca10012, []int{1}
+	return fileDescriptor_config_027b4c7f353c31be, []int{1}
 }
 func (m *StreamConfig) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_StreamConfig.Unmarshal(m, b)
@@ -165,7 +165,7 @@ func (m *StreamConfig) GetSecuritySettings() []*serial.TypedMessage {
 }
 
 type ProxyConfig struct {
-	Tag                  string   `protobuf:"bytes,1,opt,name=tag" json:"tag,omitempty"`
+	Tag                  string   `protobuf:"bytes,1,opt,name=tag,proto3" json:"tag,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
 	XXX_sizecache        int32    `json:"-"`
@@ -175,7 +175,7 @@ func (m *ProxyConfig) Reset()         { *m = ProxyConfig{} }
 func (m *ProxyConfig) String() string { return proto.CompactTextString(m) }
 func (*ProxyConfig) ProtoMessage()    {}
 func (*ProxyConfig) Descriptor() ([]byte, []int) {
-	return fileDescriptor_config_6493eeef2ca10012, []int{2}
+	return fileDescriptor_config_027b4c7f353c31be, []int{2}
 }
 func (m *ProxyConfig) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_ProxyConfig.Unmarshal(m, b)
@@ -210,10 +210,10 @@ func init() {
 }
 
 func init() {
-	proto.RegisterFile("v2ray.com/core/transport/internet/config.proto", fileDescriptor_config_6493eeef2ca10012)
+	proto.RegisterFile("v2ray.com/core/transport/internet/config.proto", fileDescriptor_config_027b4c7f353c31be)
 }
 
-var fileDescriptor_config_6493eeef2ca10012 = []byte{
+var fileDescriptor_config_027b4c7f353c31be = []byte{
 	// 393 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xb4, 0x91, 0xcf, 0x6a, 0xdb, 0x40,
 	0x10, 0x87, 0x2b, 0xc9, 0x6d, 0xe5, 0xb1, 0xdd, 0xae, 0xf7, 0x64, 0x0a, 0xa6, 0xae, 0x0b, 0x45,

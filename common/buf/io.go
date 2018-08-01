@@ -2,6 +2,7 @@ package buf
 
 import (
 	"io"
+	"syscall"
 	"time"
 )
 
@@ -16,7 +17,7 @@ var ErrReadTimeout = newError("IO timeout")
 
 // TimeoutReader is a reader that returns error if Read() operation takes longer than the given timeout.
 type TimeoutReader interface {
-	ReadTimeout(time.Duration) (MultiBuffer, error)
+	ReadMultiBufferTimeout(time.Duration) (MultiBuffer, error)
 }
 
 // Writer extends io.Writer with MultiBuffer.
@@ -46,11 +47,33 @@ func ReadAtLeastFrom(reader io.Reader, size int) Supplier {
 	}
 }
 
+func WriteAllBytes(writer io.Writer, payload []byte) error {
+	for len(payload) > 0 {
+		n, err := writer.Write(payload)
+		if err != nil {
+			return err
+		}
+		payload = payload[n:]
+	}
+	return nil
+}
+
 // NewReader creates a new Reader.
 // The Reader instance doesn't take the ownership of reader.
 func NewReader(reader io.Reader) Reader {
 	if mr, ok := reader.(Reader); ok {
 		return mr
+	}
+
+	if useReadv {
+		if sc, ok := reader.(syscall.Conn); ok {
+			rawConn, err := sc.SyscallConn()
+			if err != nil {
+				newError("failed to get sysconn").Base(err).WriteToLog()
+			} else {
+				return NewReadVReader(reader, rawConn)
+			}
+		}
 	}
 
 	return NewBytesToBufferReader(reader)

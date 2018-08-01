@@ -6,17 +6,16 @@ import (
 	"context"
 	"time"
 
-	"v2ray.com/core/common/task"
-
-	"v2ray.com/core/transport/pipe"
-
 	"v2ray.com/core"
 	"v2ray.com/core/common"
 	"v2ray.com/core/common/buf"
 	"v2ray.com/core/common/net"
+	"v2ray.com/core/common/platform"
 	"v2ray.com/core/common/protocol"
 	"v2ray.com/core/common/retry"
+	"v2ray.com/core/common/session"
 	"v2ray.com/core/common/signal"
+	"v2ray.com/core/common/task"
 	"v2ray.com/core/proxy"
 	"v2ray.com/core/proxy/vmess"
 	"v2ray.com/core/proxy/vmess/encoding"
@@ -63,13 +62,13 @@ func (v *Handler) Process(ctx context.Context, link *core.Link, dialer proxy.Dia
 	if err != nil {
 		return newError("failed to find an available destination").Base(err).AtWarning()
 	}
-	defer conn.Close()
+	defer conn.Close() //nolint: errcheck
 
 	target, ok := proxy.TargetFromContext(ctx)
 	if !ok {
 		return newError("target not specified").AtError()
 	}
-	newError("tunneling request to ", target, " via ", rec.Destination()).WithContext(ctx).WriteToLog()
+	newError("tunneling request to ", target, " via ", rec.Destination()).WriteToLog(session.ExportIDToError(ctx))
 
 	command := protocol.RequestCommandTCP
 	if target.Network == net.Network_UDP {
@@ -99,6 +98,10 @@ func (v *Handler) Process(ctx context.Context, link *core.Link, dialer proxy.Dia
 		request.Option.Set(protocol.RequestOptionChunkMasking)
 	}
 
+	if enablePadding && request.Option.Has(protocol.RequestOptionChunkMasking) {
+		request.Option.Set(protocol.RequestOptionGlobalPadding)
+	}
+
 	input := link.Reader
 	output := link.Writer
 
@@ -117,16 +120,8 @@ func (v *Handler) Process(ctx context.Context, link *core.Link, dialer proxy.Dia
 		}
 
 		bodyWriter := session.EncodeRequestBody(request, writer)
-		if tReader, ok := input.(*pipe.Reader); ok {
-			firstPayload, err := tReader.ReadMultiBufferWithTimeout(time.Millisecond * 500)
-			if err != nil && err != buf.ErrReadTimeout {
-				return newError("failed to get first payload").Base(err)
-			}
-			if !firstPayload.IsEmpty() {
-				if err := bodyWriter.WriteMultiBuffer(firstPayload); err != nil {
-					return newError("failed to write first payload").Base(err)
-				}
-			}
+		if err := buf.CopyOnceTimeout(input, bodyWriter, time.Millisecond*500); err != nil && err != buf.ErrNotTimeoutReader && err != buf.ErrReadTimeout {
+			return newError("failed to write first payload").Base(err)
 		}
 
 		if err := writer.SetBuffered(false); err != nil {
@@ -170,8 +165,18 @@ func (v *Handler) Process(ctx context.Context, link *core.Link, dialer proxy.Dia
 	return nil
 }
 
+var (
+	enablePadding = false
+)
+
 func init() {
 	common.Must(common.RegisterConfig((*Config)(nil), func(ctx context.Context, config interface{}) (interface{}, error) {
 		return New(ctx, config.(*Config))
 	}))
+
+	const defaultFlagValue = "NOT_DEFINED_AT_ALL"
+	paddingValue := platform.NewEnvFlag("v2ray.vmess.padding").GetValue(func() string { return defaultFlagValue })
+	if paddingValue != defaultFlagValue {
+		enablePadding = true
+	}
 }

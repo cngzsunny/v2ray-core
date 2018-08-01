@@ -58,7 +58,7 @@ func (x CipherType) String() string {
 	return proto.EnumName(CipherType_name, int32(x))
 }
 func (CipherType) EnumDescriptor() ([]byte, []int) {
-	return fileDescriptor_config_655e5edd5746da74, []int{0}
+	return fileDescriptor_config_a7d2e93dc7e58d6d, []int{0}
 }
 
 type Account_OneTimeAuth int32
@@ -84,13 +84,13 @@ func (x Account_OneTimeAuth) String() string {
 	return proto.EnumName(Account_OneTimeAuth_name, int32(x))
 }
 func (Account_OneTimeAuth) EnumDescriptor() ([]byte, []int) {
-	return fileDescriptor_config_655e5edd5746da74, []int{0, 0}
+	return fileDescriptor_config_a7d2e93dc7e58d6d, []int{0, 0}
 }
 
 type Account struct {
-	Password             string              `protobuf:"bytes,1,opt,name=password" json:"password,omitempty"`
-	CipherType           CipherType          `protobuf:"varint,2,opt,name=cipher_type,json=cipherType,enum=v2ray.core.proxy.shadowsocks.CipherType" json:"cipher_type,omitempty"`
-	Ota                  Account_OneTimeAuth `protobuf:"varint,3,opt,name=ota,enum=v2ray.core.proxy.shadowsocks.Account_OneTimeAuth" json:"ota,omitempty"`
+	Password             string              `protobuf:"bytes,1,opt,name=password,proto3" json:"password,omitempty"`
+	CipherType           CipherType          `protobuf:"varint,2,opt,name=cipher_type,json=cipherType,proto3,enum=v2ray.core.proxy.shadowsocks.CipherType" json:"cipher_type,omitempty"`
+	Ota                  Account_OneTimeAuth `protobuf:"varint,3,opt,name=ota,proto3,enum=v2ray.core.proxy.shadowsocks.Account_OneTimeAuth" json:"ota,omitempty"`
 	XXX_NoUnkeyedLiteral struct{}            `json:"-"`
 	XXX_unrecognized     []byte              `json:"-"`
 	XXX_sizecache        int32               `json:"-"`
@@ -100,7 +100,7 @@ func (m *Account) Reset()         { *m = Account{} }
 func (m *Account) String() string { return proto.CompactTextString(m) }
 func (*Account) ProtoMessage()    {}
 func (*Account) Descriptor() ([]byte, []int) {
-	return fileDescriptor_config_655e5edd5746da74, []int{0}
+	return fileDescriptor_config_a7d2e93dc7e58d6d, []int{0}
 }
 func (m *Account) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_Account.Unmarshal(m, b)
@@ -144,9 +144,9 @@ func (m *Account) GetOta() Account_OneTimeAuth {
 type ServerConfig struct {
 	// UdpEnabled specified whether or not to enable UDP for Shadowsocks.
 	// Deprecated. Use 'network' field.
-	UdpEnabled           bool           `protobuf:"varint,1,opt,name=udp_enabled,json=udpEnabled" json:"udp_enabled,omitempty"` // Deprecated: Do not use.
-	User                 *protocol.User `protobuf:"bytes,2,opt,name=user" json:"user,omitempty"`
-	Network              []net.Network  `protobuf:"varint,3,rep,packed,name=network,enum=v2ray.core.common.net.Network" json:"network,omitempty"`
+	UdpEnabled           bool           `protobuf:"varint,1,opt,name=udp_enabled,json=udpEnabled,proto3" json:"udp_enabled,omitempty"` // Deprecated: Do not use.
+	User                 *protocol.User `protobuf:"bytes,2,opt,name=user,proto3" json:"user,omitempty"`
+	Network              []net.Network  `protobuf:"varint,3,rep,packed,name=network,proto3,enum=v2ray.core.common.net.Network" json:"network,omitempty"`
 	XXX_NoUnkeyedLiteral struct{}       `json:"-"`
 	XXX_unrecognized     []byte         `json:"-"`
 	XXX_sizecache        int32          `json:"-"`
@@ -156,7 +156,7 @@ func (m *ServerConfig) Reset()         { *m = ServerConfig{} }
 func (m *ServerConfig) String() string { return proto.CompactTextString(m) }
 func (*ServerConfig) ProtoMessage()    {}
 func (*ServerConfig) Descriptor() ([]byte, []int) {
-	return fileDescriptor_config_655e5edd5746da74, []int{1}
+	return fileDescriptor_config_a7d2e93dc7e58d6d, []int{1}
 }
 func (m *ServerConfig) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_ServerConfig.Unmarshal(m, b)
@@ -199,7 +199,7 @@ func (m *ServerConfig) GetNetwork() []net.Network {
 }
 
 type ClientConfig struct {
-	Server               []*protocol.ServerEndpoint `protobuf:"bytes,1,rep,name=server" json:"server,omitempty"`
+	Server               []*protocol.ServerEndpoint `protobuf:"bytes,1,rep,name=server,proto3" json:"server,omitempty"`
 	XXX_NoUnkeyedLiteral struct{}                   `json:"-"`
 	XXX_unrecognized     []byte                     `json:"-"`
 	XXX_sizecache        int32                      `json:"-"`
@@ -209,7 +209,7 @@ func (m *ClientConfig) Reset()         { *m = ClientConfig{} }
 func (m *ClientConfig) String() string { return proto.CompactTextString(m) }
 func (*ClientConfig) ProtoMessage()    {}
 func (*ClientConfig) Descriptor() ([]byte, []int) {
-	return fileDescriptor_config_655e5edd5746da74, []int{2}
+	return fileDescriptor_config_a7d2e93dc7e58d6d, []int{2}
 }
 func (m *ClientConfig) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_ClientConfig.Unmarshal(m, b)
@@ -245,10 +245,10 @@ func init() {
 }
 
 func init() {
-	proto.RegisterFile("v2ray.com/core/proxy/shadowsocks/config.proto", fileDescriptor_config_655e5edd5746da74)
+	proto.RegisterFile("v2ray.com/core/proxy/shadowsocks/config.proto", fileDescriptor_config_a7d2e93dc7e58d6d)
 }
 
-var fileDescriptor_config_655e5edd5746da74 = []byte{
+var fileDescriptor_config_a7d2e93dc7e58d6d = []byte{
 	// 522 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x84, 0x92, 0xc1, 0x6e, 0xd3, 0x4e,
 	0x10, 0xc6, 0xbb, 0x71, 0xff, 0x4d, 0xfe, 0xe3, 0x50, 0xdc, 0x95, 0x90, 0xac, 0xa8, 0x42, 0x56,

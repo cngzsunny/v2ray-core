@@ -9,8 +9,6 @@ import (
 	"sync"
 	"time"
 
-	"v2ray.com/core/common/task"
-
 	"v2ray.com/core"
 	"v2ray.com/core/common"
 	"v2ray.com/core/common/buf"
@@ -19,7 +17,9 @@ import (
 	"v2ray.com/core/common/net"
 	"v2ray.com/core/common/protocol"
 	"v2ray.com/core/common/serial"
+	"v2ray.com/core/common/session"
 	"v2ray.com/core/common/signal"
+	"v2ray.com/core/common/task"
 	"v2ray.com/core/common/uuid"
 	"v2ray.com/core/proxy/vmess"
 	"v2ray.com/core/proxy/vmess/encoding"
@@ -226,8 +226,8 @@ func (h *Handler) Process(ctx context.Context, network net.Network, connection i
 
 	reader := &buf.BufferedReader{Reader: buf.NewReader(connection)}
 
-	session := encoding.NewServerSession(h.clients, h.sessionHistory)
-	request, err := session.DecodeRequestHeader(reader)
+	svrSession := encoding.NewServerSession(h.clients, h.sessionHistory)
+	request, err := svrSession.DecodeRequestHeader(reader)
 
 	if err != nil {
 		if errors.Cause(err) != io.EOF {
@@ -261,10 +261,10 @@ func (h *Handler) Process(ctx context.Context, network net.Network, connection i
 		})
 	}
 
-	newError("received request for ", request.Destination()).WithContext(ctx).WriteToLog()
+	newError("received request for ", request.Destination()).WriteToLog(session.ExportIDToError(ctx))
 
 	if err := connection.SetReadDeadline(time.Time{}); err != nil {
-		newError("unable to set back read deadline").Base(err).WithContext(ctx).WriteToLog()
+		newError("unable to set back read deadline").Base(err).WriteToLog(session.ExportIDToError(ctx))
 	}
 
 	sessionPolicy = h.policyManager.ForLevel(request.User.Level)
@@ -281,7 +281,7 @@ func (h *Handler) Process(ctx context.Context, network net.Network, connection i
 
 	requestDone := func() error {
 		defer timer.SetTimeout(sessionPolicy.Timeouts.DownlinkOnly)
-		return transferRequest(timer, session, request, reader, link.Writer)
+		return transferRequest(timer, svrSession, request, reader, link.Writer)
 	}
 
 	responseDone := func() error {
@@ -292,7 +292,7 @@ func (h *Handler) Process(ctx context.Context, network net.Network, connection i
 		response := &protocol.ResponseHeader{
 			Command: h.generateCommand(ctx, request),
 		}
-		return transferResponse(timer, session, request, response, link.Reader, writer)
+		return transferResponse(timer, svrSession, request, response, link.Reader, writer)
 	}
 
 	var requestDonePost = task.Single(requestDone, task.OnSuccess(task.Close(link.Writer)))
@@ -311,7 +311,7 @@ func (h *Handler) generateCommand(ctx context.Context, request *protocol.Request
 		if h.inboundHandlerManager != nil {
 			handler, err := h.inboundHandlerManager.GetHandler(ctx, tag)
 			if err != nil {
-				newError("failed to get detour handler: ", tag).Base(err).AtWarning().WithContext(ctx).WriteToLog()
+				newError("failed to get detour handler: ", tag).Base(err).AtWarning().WriteToLog(session.ExportIDToError(ctx))
 				return nil
 			}
 			proxyHandler, port, availableMin := handler.GetRandomInboundProxy()
@@ -321,7 +321,7 @@ func (h *Handler) generateCommand(ctx context.Context, request *protocol.Request
 					availableMin = 255
 				}
 
-				newError("pick detour handler for port ", port, " for ", availableMin, " minutes.").AtDebug().WithContext(ctx).WriteToLog()
+				newError("pick detour handler for port ", port, " for ", availableMin, " minutes.").AtDebug().WriteToLog(session.ExportIDToError(ctx))
 				user := inboundHandler.GetUser(request.User.Email)
 				if user == nil {
 					return nil

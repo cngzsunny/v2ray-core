@@ -17,10 +17,10 @@ const _ = proto.ProtoPackageIsVersion2 // please upgrade the proto package
 
 // Config for HTTP proxy server.
 type ServerConfig struct {
-	Timeout              uint32            `protobuf:"varint,1,opt,name=timeout" json:"timeout,omitempty"` // Deprecated: Do not use.
-	Accounts             map[string]string `protobuf:"bytes,2,rep,name=accounts" json:"accounts,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
-	AllowTransparent     bool              `protobuf:"varint,3,opt,name=allow_transparent,json=allowTransparent" json:"allow_transparent,omitempty"`
-	UserLevel            uint32            `protobuf:"varint,4,opt,name=user_level,json=userLevel" json:"user_level,omitempty"`
+	Timeout              uint32            `protobuf:"varint,1,opt,name=timeout,proto3" json:"timeout,omitempty"` // Deprecated: Do not use.
+	Accounts             map[string]string `protobuf:"bytes,2,rep,name=accounts,proto3" json:"accounts,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
+	AllowTransparent     bool              `protobuf:"varint,3,opt,name=allow_transparent,json=allowTransparent,proto3" json:"allow_transparent,omitempty"`
+	UserLevel            uint32            `protobuf:"varint,4,opt,name=user_level,json=userLevel,proto3" json:"user_level,omitempty"`
 	XXX_NoUnkeyedLiteral struct{}          `json:"-"`
 	XXX_unrecognized     []byte            `json:"-"`
 	XXX_sizecache        int32             `json:"-"`
@@ -30,7 +30,7 @@ func (m *ServerConfig) Reset()         { *m = ServerConfig{} }
 func (m *ServerConfig) String() string { return proto.CompactTextString(m) }
 func (*ServerConfig) ProtoMessage()    {}
 func (*ServerConfig) Descriptor() ([]byte, []int) {
-	return fileDescriptor_config_593308a66adc1606, []int{0}
+	return fileDescriptor_config_00149e53e8f51a9f, []int{0}
 }
 func (m *ServerConfig) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_ServerConfig.Unmarshal(m, b)
@@ -90,7 +90,7 @@ func (m *ClientConfig) Reset()         { *m = ClientConfig{} }
 func (m *ClientConfig) String() string { return proto.CompactTextString(m) }
 func (*ClientConfig) ProtoMessage()    {}
 func (*ClientConfig) Descriptor() ([]byte, []int) {
-	return fileDescriptor_config_593308a66adc1606, []int{1}
+	return fileDescriptor_config_00149e53e8f51a9f, []int{1}
 }
 func (m *ClientConfig) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_ClientConfig.Unmarshal(m, b)
@@ -117,10 +117,10 @@ func init() {
 }
 
 func init() {
-	proto.RegisterFile("v2ray.com/core/proxy/http/config.proto", fileDescriptor_config_593308a66adc1606)
+	proto.RegisterFile("v2ray.com/core/proxy/http/config.proto", fileDescriptor_config_00149e53e8f51a9f)
 }
 
-var fileDescriptor_config_593308a66adc1606 = []byte{
+var fileDescriptor_config_00149e53e8f51a9f = []byte{
 	// 296 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x6c, 0x90, 0xcf, 0x4a, 0x33, 0x31,
 	0x14, 0xc5, 0x99, 0x69, 0xbf, 0xcf, 0xf6, 0xda, 0x4a, 0x0d, 0x16, 0x46, 0x51, 0x28, 0x5d, 0x48,

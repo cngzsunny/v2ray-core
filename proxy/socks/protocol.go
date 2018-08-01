@@ -14,9 +14,11 @@ const (
 	socks5Version = 0x05
 	socks4Version = 0x04
 
-	cmdTCPConnect = 0x01
-	cmdTCPBind    = 0x02
-	cmdUDPPort    = 0x03
+	cmdTCPConnect    = 0x01
+	cmdTCPBind       = 0x02
+	cmdUDPPort       = 0x03
+	cmdTorResolve    = 0xF0
+	cmdTorResolvePTR = 0xF1
 
 	socks4RequestGranted  = 90
 	socks4RequestRejected = 91
@@ -131,7 +133,8 @@ func (s *ServerSession) Handshake(reader io.Reader, writer io.Writer) (*protocol
 
 		cmd := buffer.Byte(1)
 		switch cmd {
-		case cmdTCPConnect:
+		case cmdTCPConnect, cmdTorResolve, cmdTorResolvePTR:
+			// We don't have a solution for Tor case now. Simply treat it as connect command.
 			request.Command = protocol.RequestCommandTCP
 		case cmdUDPPort:
 			if !s.config.UdpEnabled {
@@ -231,8 +234,7 @@ func hasAuthMethod(expectedAuth byte, authCandidates []byte) bool {
 }
 
 func writeSocks5AuthenticationResponse(writer io.Writer, version byte, auth byte) error {
-	_, err := writer.Write([]byte{version, auth})
-	return err
+	return buf.WriteAllBytes(writer, []byte{version, auth})
 }
 
 func writeSocks5Response(writer io.Writer, errCode byte, address net.Address, port net.Port) error {
@@ -244,8 +246,7 @@ func writeSocks5Response(writer io.Writer, errCode byte, address net.Address, po
 		return err
 	}
 
-	_, err := writer.Write(buffer.Bytes())
-	return err
+	return buf.WriteAllBytes(writer, buffer.Bytes())
 }
 
 func writeSocks4Response(writer io.Writer, errCode byte, address net.Address, port net.Port) error {
@@ -255,8 +256,7 @@ func writeSocks4Response(writer io.Writer, errCode byte, address net.Address, po
 	common.Must2(buffer.AppendBytes(0x00, errCode))
 	common.Must(buffer.AppendSupplier(serial.WriteUint16(port.Value())))
 	common.Must2(buffer.Write(address.IP()))
-	_, err := writer.Write(buffer.Bytes())
-	return err
+	return buf.WriteAllBytes(writer, buffer.Bytes())
 }
 
 func DecodeUDPPacket(packet *buf.Buffer) (*protocol.RequestHeader, error) {
@@ -362,7 +362,7 @@ func ClientHandshake(request *protocol.RequestHeader, reader io.Reader, writer i
 		common.Must2(b.Write([]byte(account.Password)))
 	}
 
-	if _, err := writer.Write(b.Bytes()); err != nil {
+	if err := buf.WriteAllBytes(writer, b.Bytes()); err != nil {
 		return nil, err
 	}
 
@@ -397,7 +397,7 @@ func ClientHandshake(request *protocol.RequestHeader, reader io.Reader, writer i
 		return nil, err
 	}
 
-	if _, err := writer.Write(b.Bytes()); err != nil {
+	if err := buf.WriteAllBytes(writer, b.Bytes()); err != nil {
 		return nil, err
 	}
 

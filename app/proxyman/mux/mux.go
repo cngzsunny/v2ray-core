@@ -16,6 +16,7 @@ import (
 	"v2ray.com/core/common/log"
 	"v2ray.com/core/common/net"
 	"v2ray.com/core/common/protocol"
+	"v2ray.com/core/common/session"
 	"v2ray.com/core/common/signal/done"
 	"v2ray.com/core/proxy"
 	"v2ray.com/core/transport/pipe"
@@ -146,17 +147,17 @@ func (m *Client) monitor() {
 	}
 }
 
-func copyFirstPayload(reader *pipe.Reader, writer *Writer) error {
-	data, err := reader.ReadMultiBufferWithTimeout(time.Millisecond * 200)
-	if err == buf.ErrReadTimeout {
-		return writer.writeMetaOnly()
+func writeFirstPayload(reader buf.Reader, writer *Writer) error {
+	err := buf.CopyOnceTimeout(reader, writer, time.Millisecond*200)
+	if err == buf.ErrNotTimeoutReader || err == buf.ErrReadTimeout {
+		return writer.WriteMultiBuffer(buf.MultiBuffer{})
 	}
 
 	if err != nil {
 		return err
 	}
 
-	return writer.WriteMultiBuffer(data)
+	return nil
 }
 
 func fetchInput(ctx context.Context, s *Session, output buf.Writer) {
@@ -170,18 +171,16 @@ func fetchInput(ctx context.Context, s *Session, output buf.Writer) {
 	defer s.Close()      // nolint: errcheck
 	defer writer.Close() // nolint: errcheck
 
-	newError("dispatching request to ", dest).WithContext(ctx).WriteToLog()
-	if pReader, ok := s.input.(*pipe.Reader); ok {
-		if err := copyFirstPayload(pReader, writer); err != nil {
-			newError("failed to fetch first payload").Base(err).WithContext(ctx).WriteToLog()
-			writer.hasError = true
-			pipe.CloseError(s.input)
-			return
-		}
+	newError("dispatching request to ", dest).WriteToLog(session.ExportIDToError(ctx))
+	if err := writeFirstPayload(s.input, writer); err != nil {
+		newError("failed to write first payload").Base(err).WriteToLog(session.ExportIDToError(ctx))
+		writer.hasError = true
+		pipe.CloseError(s.input)
+		return
 	}
 
 	if err := buf.Copy(s.input, writer); err != nil {
-		newError("failed to fetch all input").Base(err).WithContext(ctx).WriteToLog()
+		newError("failed to fetch all input").Base(err).WriteToLog(session.ExportIDToError(ctx))
 		writer.hasError = true
 		pipe.CloseError(s.input)
 		return
@@ -346,7 +345,7 @@ type ServerWorker struct {
 func handle(ctx context.Context, s *Session, output buf.Writer) {
 	writer := NewResponseWriter(s.ID, output, s.transferType)
 	if err := buf.Copy(s.input, writer); err != nil {
-		newError("session ", s.ID, " ends.").Base(err).WithContext(ctx).WriteToLog()
+		newError("session ", s.ID, " ends.").Base(err).WriteToLog(session.ExportIDToError(ctx))
 		writer.hasError = true
 	}
 
@@ -362,7 +361,7 @@ func (w *ServerWorker) handleStatusKeepAlive(meta *FrameMetadata, reader *buf.Bu
 }
 
 func (w *ServerWorker) handleStatusNew(ctx context.Context, meta *FrameMetadata, reader *buf.BufferedReader) error {
-	newError("received request for ", meta.Target).WithContext(ctx).WriteToLog()
+	newError("received request for ", meta.Target).WriteToLog(session.ExportIDToError(ctx))
 	{
 		msg := &log.AccessMessage{
 			To:     meta.Target,
@@ -475,7 +474,7 @@ func (w *ServerWorker) run(ctx context.Context) {
 			err := w.handleFrame(ctx, reader)
 			if err != nil {
 				if errors.Cause(err) != io.EOF {
-					newError("unexpected EOF").Base(err).WithContext(ctx).WriteToLog()
+					newError("unexpected EOF").Base(err).WriteToLog(session.ExportIDToError(ctx))
 					pipe.CloseError(input)
 				}
 				return

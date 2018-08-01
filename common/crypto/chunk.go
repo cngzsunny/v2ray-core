@@ -20,6 +20,11 @@ type ChunkSizeEncoder interface {
 	Encode(uint16, []byte) []byte
 }
 
+type PaddingLengthGenerator interface {
+	MaxPaddingLen() uint16
+	NextPaddingLen() uint16
+}
+
 type PlainChunkSizeParser struct{}
 
 func (PlainChunkSizeParser) SizeBytes() int32 {

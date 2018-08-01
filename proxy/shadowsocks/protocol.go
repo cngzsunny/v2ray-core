@@ -8,7 +8,6 @@ import (
 	"v2ray.com/core/common"
 	"v2ray.com/core/common/bitmask"
 	"v2ray.com/core/common/buf"
-	"v2ray.com/core/common/dice"
 	"v2ray.com/core/common/net"
 	"v2ray.com/core/common/protocol"
 )
@@ -65,12 +64,7 @@ func ReadTCPSession(user *protocol.User, reader io.Reader) (*protocol.RequestHea
 	buffer.Clear()
 
 	addr, port, err := addrParser.ReadAddressPort(buffer, br)
-
 	if err != nil {
-		// Invalid address. Continue to read some bytes to confuse client.
-		nBytes := dice.Roll(32) + 1
-		buffer.Clear()
-		buffer.AppendSupplier(buf.ReadFullFrom(br, int32(nBytes)))
 		return nil, nil, newError("failed to read address").Base(err)
 	}
 
@@ -138,7 +132,7 @@ func WriteTCPRequest(request *protocol.RequestHeader, writer io.Writer) (buf.Wri
 	if account.Cipher.IVSize() > 0 {
 		iv = make([]byte, account.Cipher.IVSize())
 		common.Must2(rand.Read(iv))
-		if _, err = writer.Write(iv); err != nil {
+		if err := buf.WriteAllBytes(writer, iv); err != nil {
 			return nil, newError("failed to write IV")
 		}
 	}
@@ -205,7 +199,7 @@ func WriteTCPResponse(request *protocol.RequestHeader, writer io.Writer) (buf.Wr
 	if account.Cipher.IVSize() > 0 {
 		iv = make([]byte, account.Cipher.IVSize())
 		common.Must2(rand.Read(iv))
-		if _, err = writer.Write(iv); err != nil {
+		if err := buf.WriteAllBytes(writer, iv); err != nil {
 			return nil, newError("failed to write IV.").Base(err)
 		}
 	}

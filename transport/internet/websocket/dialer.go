@@ -4,17 +4,18 @@ import (
 	"context"
 	"time"
 
-	"websocket"
+	"github.com/gorilla/websocket"
 
 	"v2ray.com/core/common"
 	"v2ray.com/core/common/net"
+	"v2ray.com/core/common/session"
 	"v2ray.com/core/transport/internet"
 	"v2ray.com/core/transport/internet/tls"
 )
 
 // Dial dials a WebSocket connection to the given destination.
 func Dial(ctx context.Context, dest net.Destination) (internet.Connection, error) {
-	newError("creating connection to ", dest).WithContext(ctx).WriteToLog()
+	newError("creating connection to ", dest).WriteToLog(session.ExportIDToError(ctx))
 
 	conn, err := dialWebsocket(ctx, dest)
 	if err != nil {

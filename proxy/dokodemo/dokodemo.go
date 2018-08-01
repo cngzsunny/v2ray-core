@@ -10,6 +10,7 @@ import (
 	"v2ray.com/core/common"
 	"v2ray.com/core/common/buf"
 	"v2ray.com/core/common/net"
+	"v2ray.com/core/common/session"
 	"v2ray.com/core/common/signal"
 	"v2ray.com/core/common/task"
 	"v2ray.com/core/proxy"
@@ -53,8 +54,12 @@ func (d *DokodemoDoor) policy() core.Policy {
 	return p
 }
 
+type hasHandshakeAddress interface {
+	HandshakeAddress() net.Address
+}
+
 func (d *DokodemoDoor) Process(ctx context.Context, network net.Network, conn internet.Connection, dispatcher core.Dispatcher) error {
-	newError("processing connection from: ", conn.RemoteAddr()).AtDebug().WithContext(ctx).WriteToLog()
+	newError("processing connection from: ", conn.RemoteAddr()).AtDebug().WriteToLog(session.ExportIDToError(ctx))
 	dest := net.Destination{
 		Network: network,
 		Address: d.address,
@@ -63,6 +68,11 @@ func (d *DokodemoDoor) Process(ctx context.Context, network net.Network, conn in
 	if d.config.FollowRedirect {
 		if origDest, ok := proxy.OriginalTargetFromContext(ctx); ok {
 			dest = origDest
+		} else if handshake, ok := conn.(hasHandshakeAddress); ok {
+			addr := handshake.HandshakeAddress()
+			if addr != nil {
+				dest.Address = addr
+			}
 		}
 	}
 	if !dest.IsValid() || dest.Address == nil {

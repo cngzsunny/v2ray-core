@@ -42,15 +42,15 @@ func (x LogType) String() string {
 	return proto.EnumName(LogType_name, int32(x))
 }
 func (LogType) EnumDescriptor() ([]byte, []int) {
-	return fileDescriptor_config_a0f33891648538d2, []int{0}
+	return fileDescriptor_config_2fe3970bf77f5f95, []int{0}
 }
 
 type Config struct {
-	ErrorLogType         LogType      `protobuf:"varint,1,opt,name=error_log_type,json=errorLogType,enum=v2ray.core.app.log.LogType" json:"error_log_type,omitempty"`
-	ErrorLogLevel        log.Severity `protobuf:"varint,2,opt,name=error_log_level,json=errorLogLevel,enum=v2ray.core.common.log.Severity" json:"error_log_level,omitempty"`
-	ErrorLogPath         string       `protobuf:"bytes,3,opt,name=error_log_path,json=errorLogPath" json:"error_log_path,omitempty"`
-	AccessLogType        LogType      `protobuf:"varint,4,opt,name=access_log_type,json=accessLogType,enum=v2ray.core.app.log.LogType" json:"access_log_type,omitempty"`
-	AccessLogPath        string       `protobuf:"bytes,5,opt,name=access_log_path,json=accessLogPath" json:"access_log_path,omitempty"`
+	ErrorLogType         LogType      `protobuf:"varint,1,opt,name=error_log_type,json=errorLogType,proto3,enum=v2ray.core.app.log.LogType" json:"error_log_type,omitempty"`
+	ErrorLogLevel        log.Severity `protobuf:"varint,2,opt,name=error_log_level,json=errorLogLevel,proto3,enum=v2ray.core.common.log.Severity" json:"error_log_level,omitempty"`
+	ErrorLogPath         string       `protobuf:"bytes,3,opt,name=error_log_path,json=errorLogPath,proto3" json:"error_log_path,omitempty"`
+	AccessLogType        LogType      `protobuf:"varint,4,opt,name=access_log_type,json=accessLogType,proto3,enum=v2ray.core.app.log.LogType" json:"access_log_type,omitempty"`
+	AccessLogPath        string       `protobuf:"bytes,5,opt,name=access_log_path,json=accessLogPath,proto3" json:"access_log_path,omitempty"`
 	XXX_NoUnkeyedLiteral struct{}     `json:"-"`
 	XXX_unrecognized     []byte       `json:"-"`
 	XXX_sizecache        int32        `json:"-"`
@@ -60,7 +60,7 @@ func (m *Config) Reset()         { *m = Config{} }
 func (m *Config) String() string { return proto.CompactTextString(m) }
 func (*Config) ProtoMessage()    {}
 func (*Config) Descriptor() ([]byte, []int) {
-	return fileDescriptor_config_a0f33891648538d2, []int{0}
+	return fileDescriptor_config_2fe3970bf77f5f95, []int{0}
 }
 func (m *Config) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_Config.Unmarshal(m, b)
@@ -121,10 +121,10 @@ func init() {
 }
 
 func init() {
-	proto.RegisterFile("v2ray.com/core/app/log/config.proto", fileDescriptor_config_a0f33891648538d2)
+	proto.RegisterFile("v2ray.com/core/app/log/config.proto", fileDescriptor_config_2fe3970bf77f5f95)
 }
 
-var fileDescriptor_config_a0f33891648538d2 = []byte{
+var fileDescriptor_config_2fe3970bf77f5f95 = []byte{
 	// 306 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x84, 0x91, 0xcd, 0x4a, 0xfb, 0x40,
 	0x14, 0x47, 0xff, 0x49, 0xbf, 0xfe, 0x1d, 0x6d, 0x1b, 0x66, 0x21, 0x45, 0x17, 0x16, 0x15, 0x29,

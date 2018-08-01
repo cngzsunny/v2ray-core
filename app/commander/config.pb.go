@@ -19,9 +19,9 @@ const _ = proto.ProtoPackageIsVersion2 // please upgrade the proto package
 // Config is the settings for Commander.
 type Config struct {
 	// Tag of the outbound handler that handles grpc connections.
-	Tag string `protobuf:"bytes,1,opt,name=tag" json:"tag,omitempty"`
+	Tag string `protobuf:"bytes,1,opt,name=tag,proto3" json:"tag,omitempty"`
 	// Services that supported by this server. All services must implement Service interface.
-	Service              []*serial.TypedMessage `protobuf:"bytes,2,rep,name=service" json:"service,omitempty"`
+	Service              []*serial.TypedMessage `protobuf:"bytes,2,rep,name=service,proto3" json:"service,omitempty"`
 	XXX_NoUnkeyedLiteral struct{}               `json:"-"`
 	XXX_unrecognized     []byte                 `json:"-"`
 	XXX_sizecache        int32                  `json:"-"`
@@ -31,7 +31,7 @@ func (m *Config) Reset()         { *m = Config{} }
 func (m *Config) String() string { return proto.CompactTextString(m) }
 func (*Config) ProtoMessage()    {}
 func (*Config) Descriptor() ([]byte, []int) {
-	return fileDescriptor_config_81dbee9f112d6327, []int{0}
+	return fileDescriptor_config_09a7ac342567c727, []int{0}
 }
 func (m *Config) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_Config.Unmarshal(m, b)
@@ -70,10 +70,10 @@ func init() {
 }
 
 func init() {
-	proto.RegisterFile("v2ray.com/core/app/commander/config.proto", fileDescriptor_config_81dbee9f112d6327)
+	proto.RegisterFile("v2ray.com/core/app/commander/config.proto", fileDescriptor_config_09a7ac342567c727)
 }
 
-var fileDescriptor_config_81dbee9f112d6327 = []byte{
+var fileDescriptor_config_09a7ac342567c727 = []byte{
 	// 212 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xe2, 0xd2, 0x2c, 0x33, 0x2a, 0x4a,
 	0xac, 0xd4, 0x4b, 0xce, 0xcf, 0xd5, 0x4f, 0xce, 0x2f, 0x4a, 0xd5, 0x4f, 0x2c, 0x28, 0xd0, 0x4f,

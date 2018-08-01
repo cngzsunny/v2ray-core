@@ -37,12 +37,12 @@ func (x AuthType) String() string {
 	return proto.EnumName(AuthType_name, int32(x))
 }
 func (AuthType) EnumDescriptor() ([]byte, []int) {
-	return fileDescriptor_config_45beb3f2ac36b2a3, []int{0}
+	return fileDescriptor_config_5b5632820a3cc171, []int{0}
 }
 
 type Account struct {
-	Username             string   `protobuf:"bytes,1,opt,name=username" json:"username,omitempty"`
-	Password             string   `protobuf:"bytes,2,opt,name=password" json:"password,omitempty"`
+	Username             string   `protobuf:"bytes,1,opt,name=username,proto3" json:"username,omitempty"`
+	Password             string   `protobuf:"bytes,2,opt,name=password,proto3" json:"password,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
 	XXX_sizecache        int32    `json:"-"`
@@ -52,7 +52,7 @@ func (m *Account) Reset()         { *m = Account{} }
 func (m *Account) String() string { return proto.CompactTextString(m) }
 func (*Account) ProtoMessage()    {}
 func (*Account) Descriptor() ([]byte, []int) {
-	return fileDescriptor_config_45beb3f2ac36b2a3, []int{0}
+	return fileDescriptor_config_5b5632820a3cc171, []int{0}
 }
 func (m *Account) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_Account.Unmarshal(m, b)
@@ -87,12 +87,12 @@ func (m *Account) GetPassword() string {
 }
 
 type ServerConfig struct {
-	AuthType             AuthType          `protobuf:"varint,1,opt,name=auth_type,json=authType,enum=v2ray.core.proxy.socks.AuthType" json:"auth_type,omitempty"`
-	Accounts             map[string]string `protobuf:"bytes,2,rep,name=accounts" json:"accounts,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
-	Address              *net.IPOrDomain   `protobuf:"bytes,3,opt,name=address" json:"address,omitempty"`
-	UdpEnabled           bool              `protobuf:"varint,4,opt,name=udp_enabled,json=udpEnabled" json:"udp_enabled,omitempty"`
-	Timeout              uint32            `protobuf:"varint,5,opt,name=timeout" json:"timeout,omitempty"` // Deprecated: Do not use.
-	UserLevel            uint32            `protobuf:"varint,6,opt,name=user_level,json=userLevel" json:"user_level,omitempty"`
+	AuthType             AuthType          `protobuf:"varint,1,opt,name=auth_type,json=authType,proto3,enum=v2ray.core.proxy.socks.AuthType" json:"auth_type,omitempty"`
+	Accounts             map[string]string `protobuf:"bytes,2,rep,name=accounts,proto3" json:"accounts,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
+	Address              *net.IPOrDomain   `protobuf:"bytes,3,opt,name=address,proto3" json:"address,omitempty"`
+	UdpEnabled           bool              `protobuf:"varint,4,opt,name=udp_enabled,json=udpEnabled,proto3" json:"udp_enabled,omitempty"`
+	Timeout              uint32            `protobuf:"varint,5,opt,name=timeout,proto3" json:"timeout,omitempty"` // Deprecated: Do not use.
+	UserLevel            uint32            `protobuf:"varint,6,opt,name=user_level,json=userLevel,proto3" json:"user_level,omitempty"`
 	XXX_NoUnkeyedLiteral struct{}          `json:"-"`
 	XXX_unrecognized     []byte            `json:"-"`
 	XXX_sizecache        int32             `json:"-"`
@@ -102,7 +102,7 @@ func (m *ServerConfig) Reset()         { *m = ServerConfig{} }
 func (m *ServerConfig) String() string { return proto.CompactTextString(m) }
 func (*ServerConfig) ProtoMessage()    {}
 func (*ServerConfig) Descriptor() ([]byte, []int) {
-	return fileDescriptor_config_45beb3f2ac36b2a3, []int{1}
+	return fileDescriptor_config_5b5632820a3cc171, []int{1}
 }
 func (m *ServerConfig) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_ServerConfig.Unmarshal(m, b)
@@ -166,7 +166,7 @@ func (m *ServerConfig) GetUserLevel() uint32 {
 }
 
 type ClientConfig struct {
-	Server               []*protocol.ServerEndpoint `protobuf:"bytes,1,rep,name=server" json:"server,omitempty"`
+	Server               []*protocol.ServerEndpoint `protobuf:"bytes,1,rep,name=server,proto3" json:"server,omitempty"`
 	XXX_NoUnkeyedLiteral struct{}                   `json:"-"`
 	XXX_unrecognized     []byte                     `json:"-"`
 	XXX_sizecache        int32                      `json:"-"`
@@ -176,7 +176,7 @@ func (m *ClientConfig) Reset()         { *m = ClientConfig{} }
 func (m *ClientConfig) String() string { return proto.CompactTextString(m) }
 func (*ClientConfig) ProtoMessage()    {}
 func (*ClientConfig) Descriptor() ([]byte, []int) {
-	return fileDescriptor_config_45beb3f2ac36b2a3, []int{2}
+	return fileDescriptor_config_5b5632820a3cc171, []int{2}
 }
 func (m *ClientConfig) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_ClientConfig.Unmarshal(m, b)
@@ -212,10 +212,10 @@ func init() {
 }
 
 func init() {
-	proto.RegisterFile("v2ray.com/core/proxy/socks/config.proto", fileDescriptor_config_45beb3f2ac36b2a3)
+	proto.RegisterFile("v2ray.com/core/proxy/socks/config.proto", fileDescriptor_config_5b5632820a3cc171)
 }
 
-var fileDescriptor_config_45beb3f2ac36b2a3 = []byte{
+var fileDescriptor_config_5b5632820a3cc171 = []byte{
 	// 470 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x74, 0x52, 0x5d, 0x8b, 0xd3, 0x40,
 	0x14, 0x75, 0xb2, 0xb6, 0x4d, 0x6f, 0xbb, 0x52, 0x06, 0x59, 0x42, 0x51, 0x8c, 0x05, 0xb1, 0xec,
