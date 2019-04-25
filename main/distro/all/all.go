@@ -18,11 +18,13 @@ import (
 	_ "v2ray.com/core/app/dns"
 	_ "v2ray.com/core/app/log"
 	_ "v2ray.com/core/app/policy"
+	_ "v2ray.com/core/app/reverse"
 	_ "v2ray.com/core/app/router"
 	_ "v2ray.com/core/app/stats"
 
 	// Inbound and outbound proxies.
 	_ "v2ray.com/core/proxy/blackhole"
+	_ "v2ray.com/core/proxy/dns"
 	_ "v2ray.com/core/proxy/dokodemo"
 	_ "v2ray.com/core/proxy/freedom"
 	_ "v2ray.com/core/proxy/http"
@@ -36,6 +38,7 @@ import (
 	_ "v2ray.com/core/transport/internet/domainsocket"
 	_ "v2ray.com/core/transport/internet/http"
 	_ "v2ray.com/core/transport/internet/kcp"
+	_ "v2ray.com/core/transport/internet/quic"
 	_ "v2ray.com/core/transport/internet/tcp"
 	_ "v2ray.com/core/transport/internet/tls"
 	_ "v2ray.com/core/transport/internet/udp"
@@ -48,6 +51,7 @@ import (
 	_ "v2ray.com/core/transport/internet/headers/tls"
 	_ "v2ray.com/core/transport/internet/headers/utp"
 	_ "v2ray.com/core/transport/internet/headers/wechat"
+	_ "v2ray.com/core/transport/internet/headers/wireguard"
 
 	// JSON config support. Choose only one from the two below.
 	// The following line loads JSON from v2ctl

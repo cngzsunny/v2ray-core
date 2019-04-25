@@ -3,7 +3,7 @@ package policy
 import (
 	"time"
 
-	"v2ray.com/core"
+	"v2ray.com/core/features/policy"
 )
 
 // Duration converts Second to time.Duration.
@@ -15,7 +15,7 @@ func (s *Second) Duration() time.Duration {
 }
 
 func defaultPolicy() *Policy {
-	p := core.DefaultPolicy()
+	p := policy.SessionDefault()
 
 	return &Policy{
 		Timeout: &Policy_Timeout{
@@ -53,11 +53,16 @@ func (p *Policy) overrideWith(another *Policy) {
 		p.Stats = new(Policy_Stats)
 		*p.Stats = *another.Stats
 	}
+	if another.Buffer != nil {
+		p.Buffer = &Policy_Buffer{
+			Connection: another.Buffer.Connection,
+		}
+	}
 }
 
-// ToCorePolicy converts this Policy to core.Policy.
-func (p *Policy) ToCorePolicy() core.Policy {
-	cp := core.DefaultPolicy()
+// ToCorePolicy converts this Policy to policy.Session.
+func (p *Policy) ToCorePolicy() policy.Session {
+	cp := policy.SessionDefault()
 
 	if p.Timeout != nil {
 		cp.Timeouts.ConnectionIdle = p.Timeout.ConnectionIdle.Duration()
@@ -75,10 +80,10 @@ func (p *Policy) ToCorePolicy() core.Policy {
 	return cp
 }
 
-// ToCorePolicy converts this SystemPolicy to core.SystemPolicy.
-func (p *SystemPolicy) ToCorePolicy() core.SystemPolicy {
-	return core.SystemPolicy{
-		Stats: core.SystemStatsPolicy{
+// ToCorePolicy converts this SystemPolicy to policy.System.
+func (p *SystemPolicy) ToCorePolicy() policy.System {
+	return policy.System{
+		Stats: policy.SystemStats{
 			InboundUplink:   p.Stats.InboundUplink,
 			InboundDownlink: p.Stats.InboundDownlink,
 		},

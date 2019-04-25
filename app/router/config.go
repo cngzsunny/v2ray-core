@@ -1,62 +1,75 @@
+// +build !confonly
+
 package router
 
 import (
-	"context"
-
 	"v2ray.com/core/common/net"
+	"v2ray.com/core/features/outbound"
 )
 
-type Rule struct {
-	Tag       string
-	Condition Condition
+// CIDRList is an alias of []*CIDR to provide sort.Interface.
+type CIDRList []*CIDR
+
+// Len implements sort.Interface.
+func (l *CIDRList) Len() int {
+	return len(*l)
 }
 
-func (r *Rule) Apply(ctx context.Context) bool {
-	return r.Condition.Apply(ctx)
-}
+// Less implements sort.Interface.
+func (l *CIDRList) Less(i int, j int) bool {
+	ci := (*l)[i]
+	cj := (*l)[j]
 
-func cidrToCondition(cidr []*CIDR, source bool) (Condition, error) {
-	ipv4Net := net.NewIPNetTable()
-	ipv6Cond := NewAnyCondition()
-	hasIpv6 := false
+	if len(ci.Ip) < len(cj.Ip) {
+		return true
+	}
 
-	for _, ip := range cidr {
-		switch len(ip.Ip) {
-		case net.IPv4len:
-			ipv4Net.AddIP(ip.Ip, byte(ip.Prefix))
-		case net.IPv6len:
-			hasIpv6 = true
-			matcher, err := NewCIDRMatcher(ip.Ip, ip.Prefix, source)
-			if err != nil {
-				return nil, err
-			}
-			ipv6Cond.Add(matcher)
-		default:
-			return nil, newError("invalid IP length").AtWarning()
+	if len(ci.Ip) > len(cj.Ip) {
+		return false
+	}
+
+	for k := 0; k < len(ci.Ip); k++ {
+		if ci.Ip[k] < cj.Ip[k] {
+			return true
+		}
+
+		if ci.Ip[k] > cj.Ip[k] {
+			return false
 		}
 	}
 
-	if !ipv4Net.IsEmpty() && hasIpv6 {
-		cond := NewAnyCondition()
-		cond.Add(NewIPv4Matcher(ipv4Net, source))
-		cond.Add(ipv6Cond)
-		return cond, nil
-	} else if !ipv4Net.IsEmpty() {
-		return NewIPv4Matcher(ipv4Net, source), nil
-	} else {
-		return ipv6Cond, nil
+	return ci.Prefix < cj.Prefix
+}
+
+// Swap implements sort.Interface.
+func (l *CIDRList) Swap(i int, j int) {
+	(*l)[i], (*l)[j] = (*l)[j], (*l)[i]
+}
+
+type Rule struct {
+	Tag       string
+	Balancer  *Balancer
+	Condition Condition
+}
+
+func (r *Rule) GetTag() (string, error) {
+	if r.Balancer != nil {
+		return r.Balancer.PickOutbound()
 	}
+	return r.Tag, nil
+}
+
+func (r *Rule) Apply(ctx *Context) bool {
+	return r.Condition.Apply(ctx)
 }
 
 func (rr *RoutingRule) BuildCondition() (Condition, error) {
 	conds := NewConditionChan()
 
 	if len(rr.Domain) > 0 {
-		matcher := NewCachableDomainMatcher()
-		for _, domain := range rr.Domain {
-			if err := matcher.Add(domain); err != nil {
-				return nil, newError("failed to build domain condition").Base(err)
-			}
+		matcher, err := NewDomainMatcher(rr.Domain)
+		if err != nil {
+			return nil, newError("failed to build domain condition").Base(err)
 		}
 		conds.Add(matcher)
 	}
@@ -69,24 +82,40 @@ func (rr *RoutingRule) BuildCondition() (Condition, error) {
 		conds.Add(NewInboundTagMatcher(rr.InboundTag))
 	}
 
-	if rr.PortRange != nil {
-		conds.Add(NewPortMatcher(*rr.PortRange))
+	if rr.PortList != nil {
+		conds.Add(NewPortMatcher(rr.PortList))
+	} else if rr.PortRange != nil {
+		conds.Add(NewPortMatcher(&net.PortList{Range: []*net.PortRange{rr.PortRange}}))
 	}
 
-	if rr.NetworkList != nil {
-		conds.Add(NewNetworkMatcher(rr.NetworkList))
+	if len(rr.Networks) > 0 {
+		conds.Add(NewNetworkMatcher(rr.Networks))
+	} else if rr.NetworkList != nil {
+		conds.Add(NewNetworkMatcher(rr.NetworkList.Network))
 	}
 
-	if len(rr.Cidr) > 0 {
-		cond, err := cidrToCondition(rr.Cidr, false)
+	if len(rr.Geoip) > 0 {
+		cond, err := NewMultiGeoIPMatcher(rr.Geoip, false)
+		if err != nil {
+			return nil, err
+		}
+		conds.Add(cond)
+	} else if len(rr.Cidr) > 0 {
+		cond, err := NewMultiGeoIPMatcher([]*GeoIP{{Cidr: rr.Cidr}}, false)
 		if err != nil {
 			return nil, err
 		}
 		conds.Add(cond)
 	}
 
-	if len(rr.SourceCidr) > 0 {
-		cond, err := cidrToCondition(rr.SourceCidr, true)
+	if len(rr.SourceGeoip) > 0 {
+		cond, err := NewMultiGeoIPMatcher(rr.SourceGeoip, true)
+		if err != nil {
+			return nil, err
+		}
+		conds.Add(cond)
+	} else if len(rr.SourceCidr) > 0 {
+		cond, err := NewMultiGeoIPMatcher([]*GeoIP{{Cidr: rr.SourceCidr}}, true)
 		if err != nil {
 			return nil, err
 		}
@@ -97,9 +126,25 @@ func (rr *RoutingRule) BuildCondition() (Condition, error) {
 		conds.Add(NewProtocolMatcher(rr.Protocol))
 	}
 
+	if len(rr.Attributes) > 0 {
+		cond, err := NewAttributeMatcher(rr.Attributes)
+		if err != nil {
+			return nil, err
+		}
+		conds.Add(cond)
+	}
+
 	if conds.Len() == 0 {
 		return nil, newError("this rule has no effective fields").AtWarning()
 	}
 
 	return conds, nil
+}
+
+func (br *BalancingRule) Build(ohm outbound.Manager) (*Balancer, error) {
+	return &Balancer{
+		selectors: br.OutboundSelector,
+		strategy:  &RandomStrategy{},
+		ohm:       ohm,
+	}, nil
 }

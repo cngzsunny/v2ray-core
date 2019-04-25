@@ -1,3 +1,5 @@
+// +build !confonly
+
 package http
 
 import (
@@ -5,10 +7,12 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"time"
 
 	"v2ray.com/core/common"
 	"v2ray.com/core/common/net"
 	"v2ray.com/core/common/serial"
+	"v2ray.com/core/common/session"
 	"v2ray.com/core/common/signal/done"
 	"v2ray.com/core/transport/internet"
 	"v2ray.com/core/transport/internet/tls"
@@ -79,7 +83,7 @@ func (l *Listener) ServeHTTP(writer http.ResponseWriter, request *http.Request) 
 	conn := net.NewConnection(
 		net.ConnectionOutput(request.Body),
 		net.ConnectionInput(flushWriter{w: writer, d: done}),
-		net.ConnectionOnClose(common.NewChainedClosable(done, request.Body)),
+		net.ConnectionOnClose(common.ChainedClosable{done, request.Body}),
 		net.ConnectionLocalAddr(l.Addr()),
 		net.ConnectionRemoteAddr(remoteAddr),
 	)
@@ -87,13 +91,8 @@ func (l *Listener) ServeHTTP(writer http.ResponseWriter, request *http.Request) 
 	<-done.Wait()
 }
 
-func Listen(ctx context.Context, address net.Address, port net.Port, handler internet.ConnHandler) (internet.Listener, error) {
-	rawSettings := internet.TransportSettingsFromContext(ctx)
-	httpSettings, ok := rawSettings.(*Config)
-	if !ok {
-		return nil, newError("HTTP config is not set.").AtError()
-	}
-
+func Listen(ctx context.Context, address net.Address, port net.Port, streamSettings *internet.MemoryStreamConfig, handler internet.ConnHandler) (internet.Listener, error) {
+	httpSettings := streamSettings.ProtocolSettings.(*Config)
 	listener := &Listener{
 		handler: handler,
 		local: &net.TCPAddr{
@@ -103,22 +102,32 @@ func Listen(ctx context.Context, address net.Address, port net.Port, handler int
 		config: *httpSettings,
 	}
 
-	config := tls.ConfigFromContext(ctx)
+	config := tls.ConfigFromStreamSettings(streamSettings)
 	if config == nil {
 		return nil, newError("TLS must be enabled for http transport.").AtWarning()
 	}
 
 	server := &http.Server{
-		Addr:      serial.Concat(address, ":", port),
-		TLSConfig: config.GetTLSConfig(tls.WithNextProto("h2")),
-		Handler:   listener,
+		Addr:              serial.Concat(address, ":", port),
+		TLSConfig:         config.GetTLSConfig(tls.WithNextProto("h2")),
+		Handler:           listener,
+		ReadHeaderTimeout: time.Second * 4,
 	}
 
 	listener.server = server
 	go func() {
-		err := server.ListenAndServeTLS("", "")
+		tcpListener, err := internet.ListenSystem(ctx, &net.TCPAddr{
+			IP:   address.IP(),
+			Port: int(port),
+		}, streamSettings.SocketSettings)
 		if err != nil {
-			newError("stoping serving TLS").Base(err).WriteToLog()
+			newError("failed to listen on", address, ":", port).Base(err).WriteToLog(session.ExportIDToError(ctx))
+			return
+		}
+
+		err = server.ServeTLS(tcpListener, "", "")
+		if err != nil {
+			newError("stoping serving TLS").Base(err).WriteToLog(session.ExportIDToError(ctx))
 		}
 	}()
 
@@ -126,5 +135,5 @@ func Listen(ctx context.Context, address net.Address, port net.Port, handler int
 }
 
 func init() {
-	common.Must(internet.RegisterTransportListener(internet.TransportProtocol_HTTP, Listen))
+	common.Must(internet.RegisterTransportListener(protocolName, Listen))
 }

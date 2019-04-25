@@ -1,8 +1,10 @@
 package noop
 
-import proto "github.com/golang/protobuf/proto"
-import fmt "fmt"
-import math "math"
+import (
+	fmt "fmt"
+	proto "github.com/golang/protobuf/proto"
+	math "math"
+)
 
 // Reference imports to suppress errors if they are not otherwise used.
 var _ = proto.Marshal
@@ -13,7 +15,7 @@ var _ = math.Inf
 // is compatible with the proto package it is being compiled against.
 // A compilation error at this line likely means your copy of the
 // proto package needs to be updated.
-const _ = proto.ProtoPackageIsVersion2 // please upgrade the proto package
+const _ = proto.ProtoPackageIsVersion3 // please upgrade the proto package
 
 type Config struct {
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
@@ -25,16 +27,17 @@ func (m *Config) Reset()         { *m = Config{} }
 func (m *Config) String() string { return proto.CompactTextString(m) }
 func (*Config) ProtoMessage()    {}
 func (*Config) Descriptor() ([]byte, []int) {
-	return fileDescriptor_config_be1f5995116b489b, []int{0}
+	return fileDescriptor_b4a070eec05ae9a3, []int{0}
 }
+
 func (m *Config) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_Config.Unmarshal(m, b)
 }
 func (m *Config) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 	return xxx_messageInfo_Config.Marshal(b, m, deterministic)
 }
-func (dst *Config) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_Config.Merge(dst, src)
+func (m *Config) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_Config.Merge(m, src)
 }
 func (m *Config) XXX_Size() int {
 	return xxx_messageInfo_Config.Size(m)
@@ -55,16 +58,17 @@ func (m *ConnectionConfig) Reset()         { *m = ConnectionConfig{} }
 func (m *ConnectionConfig) String() string { return proto.CompactTextString(m) }
 func (*ConnectionConfig) ProtoMessage()    {}
 func (*ConnectionConfig) Descriptor() ([]byte, []int) {
-	return fileDescriptor_config_be1f5995116b489b, []int{1}
+	return fileDescriptor_b4a070eec05ae9a3, []int{1}
 }
+
 func (m *ConnectionConfig) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_ConnectionConfig.Unmarshal(m, b)
 }
 func (m *ConnectionConfig) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 	return xxx_messageInfo_ConnectionConfig.Marshal(b, m, deterministic)
 }
-func (dst *ConnectionConfig) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_ConnectionConfig.Merge(dst, src)
+func (m *ConnectionConfig) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_ConnectionConfig.Merge(m, src)
 }
 func (m *ConnectionConfig) XXX_Size() int {
 	return xxx_messageInfo_ConnectionConfig.Size(m)
@@ -81,10 +85,10 @@ func init() {
 }
 
 func init() {
-	proto.RegisterFile("v2ray.com/core/transport/internet/headers/noop/config.proto", fileDescriptor_config_be1f5995116b489b)
+	proto.RegisterFile("v2ray.com/core/transport/internet/headers/noop/config.proto", fileDescriptor_b4a070eec05ae9a3)
 }
 
-var fileDescriptor_config_be1f5995116b489b = []byte{
+var fileDescriptor_b4a070eec05ae9a3 = []byte{
 	// 170 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x8c, 0xce, 0xb1, 0xaa, 0xc2, 0x40,
 	0x10, 0x85, 0x61, 0xee, 0x45, 0x82, 0x6c, 0x25, 0x79, 0x84, 0x94, 0x29, 0x66, 0x21, 0x96, 0x76,

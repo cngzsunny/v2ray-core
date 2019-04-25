@@ -1,3 +1,5 @@
+// +build !confonly
+
 package http
 
 import (
@@ -5,6 +7,8 @@ import (
 	"v2ray.com/core/common/dice"
 	"v2ray.com/core/transport/internet"
 )
+
+const protocolName = "http"
 
 func (c *Config) getHosts() []string {
 	if len(c.Host) == 0 {
@@ -39,7 +43,7 @@ func (c *Config) getNormalizedPath() string {
 }
 
 func init() {
-	common.Must(internet.RegisterProtocolConfigCreator(internet.TransportProtocol_HTTP, func() interface{} {
+	common.Must(internet.RegisterProtocolConfigCreator(protocolName, func() interface{} {
 		return new(Config)
 	}))
 }

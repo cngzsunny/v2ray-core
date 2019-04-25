@@ -3,14 +3,11 @@ package outbound_test
 import (
 	"testing"
 
-	"v2ray.com/core"
 	. "v2ray.com/core/app/proxyman/outbound"
-	. "v2ray.com/ext/assert"
+	"v2ray.com/core/features/outbound"
 )
 
 func TestInterfaces(t *testing.T) {
-	assert := With(t)
-
-	assert((*Handler)(nil), Implements, (*core.OutboundHandler)(nil))
-	assert((*Manager)(nil), Implements, (*core.OutboundHandlerManager)(nil))
+	_ = (outbound.Handler)(new(Handler))
+	_ = (outbound.Manager)(new(Manager))
 }

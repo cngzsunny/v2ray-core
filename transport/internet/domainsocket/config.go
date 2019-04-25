@@ -1,3 +1,5 @@
+// +build !confonly
+
 package domainsocket
 
 import (
@@ -5,6 +7,8 @@ import (
 	"v2ray.com/core/common/net"
 	"v2ray.com/core/transport/internet"
 )
+
+const protocolName = "domainsocket"
 
 func (c *Config) GetUnixAddr() (*net.UnixAddr, error) {
 	path := c.Path
@@ -21,7 +25,7 @@ func (c *Config) GetUnixAddr() (*net.UnixAddr, error) {
 }
 
 func init() {
-	common.Must(internet.RegisterProtocolConfigCreator(internet.TransportProtocol_DomainSocket, func() interface{} {
+	common.Must(internet.RegisterProtocolConfigCreator(protocolName, func() interface{} {
 		return new(Config)
 	}))
 }

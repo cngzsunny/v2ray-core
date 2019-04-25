@@ -1,10 +1,12 @@
 package socks
 
-import proto "github.com/golang/protobuf/proto"
-import fmt "fmt"
-import math "math"
-import net "v2ray.com/core/common/net"
-import protocol "v2ray.com/core/common/protocol"
+import (
+	fmt "fmt"
+	proto "github.com/golang/protobuf/proto"
+	math "math"
+	net "v2ray.com/core/common/net"
+	protocol "v2ray.com/core/common/protocol"
+)
 
 // Reference imports to suppress errors if they are not otherwise used.
 var _ = proto.Marshal
@@ -15,12 +17,15 @@ var _ = math.Inf
 // is compatible with the proto package it is being compiled against.
 // A compilation error at this line likely means your copy of the
 // proto package needs to be updated.
-const _ = proto.ProtoPackageIsVersion2 // please upgrade the proto package
+const _ = proto.ProtoPackageIsVersion3 // please upgrade the proto package
 
+// AuthType is the authentication type of Socks proxy.
 type AuthType int32
 
 const (
-	AuthType_NO_AUTH  AuthType = 0
+	// NO_AUTH is for anounymous authentication.
+	AuthType_NO_AUTH AuthType = 0
+	// PASSWORD is for username/password authentication.
 	AuthType_PASSWORD AuthType = 1
 )
 
@@ -28,6 +33,7 @@ var AuthType_name = map[int32]string{
 	0: "NO_AUTH",
 	1: "PASSWORD",
 }
+
 var AuthType_value = map[string]int32{
 	"NO_AUTH":  0,
 	"PASSWORD": 1,
@@ -36,10 +42,12 @@ var AuthType_value = map[string]int32{
 func (x AuthType) String() string {
 	return proto.EnumName(AuthType_name, int32(x))
 }
+
 func (AuthType) EnumDescriptor() ([]byte, []int) {
-	return fileDescriptor_config_5b5632820a3cc171, []int{0}
+	return fileDescriptor_e86958e2cebd3303, []int{0}
 }
 
+// Account represents a Socks account.
 type Account struct {
 	Username             string   `protobuf:"bytes,1,opt,name=username,proto3" json:"username,omitempty"`
 	Password             string   `protobuf:"bytes,2,opt,name=password,proto3" json:"password,omitempty"`
@@ -52,16 +60,17 @@ func (m *Account) Reset()         { *m = Account{} }
 func (m *Account) String() string { return proto.CompactTextString(m) }
 func (*Account) ProtoMessage()    {}
 func (*Account) Descriptor() ([]byte, []int) {
-	return fileDescriptor_config_5b5632820a3cc171, []int{0}
+	return fileDescriptor_e86958e2cebd3303, []int{0}
 }
+
 func (m *Account) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_Account.Unmarshal(m, b)
 }
 func (m *Account) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 	return xxx_messageInfo_Account.Marshal(b, m, deterministic)
 }
-func (dst *Account) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_Account.Merge(dst, src)
+func (m *Account) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_Account.Merge(m, src)
 }
 func (m *Account) XXX_Size() int {
 	return xxx_messageInfo_Account.Size(m)
@@ -86,6 +95,7 @@ func (m *Account) GetPassword() string {
 	return ""
 }
 
+// ServerConfig is the protobuf config for Socks server.
 type ServerConfig struct {
 	AuthType             AuthType          `protobuf:"varint,1,opt,name=auth_type,json=authType,proto3,enum=v2ray.core.proxy.socks.AuthType" json:"auth_type,omitempty"`
 	Accounts             map[string]string `protobuf:"bytes,2,rep,name=accounts,proto3" json:"accounts,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
@@ -102,16 +112,17 @@ func (m *ServerConfig) Reset()         { *m = ServerConfig{} }
 func (m *ServerConfig) String() string { return proto.CompactTextString(m) }
 func (*ServerConfig) ProtoMessage()    {}
 func (*ServerConfig) Descriptor() ([]byte, []int) {
-	return fileDescriptor_config_5b5632820a3cc171, []int{1}
+	return fileDescriptor_e86958e2cebd3303, []int{1}
 }
+
 func (m *ServerConfig) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_ServerConfig.Unmarshal(m, b)
 }
 func (m *ServerConfig) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 	return xxx_messageInfo_ServerConfig.Marshal(b, m, deterministic)
 }
-func (dst *ServerConfig) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_ServerConfig.Merge(dst, src)
+func (m *ServerConfig) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_ServerConfig.Merge(m, src)
 }
 func (m *ServerConfig) XXX_Size() int {
 	return xxx_messageInfo_ServerConfig.Size(m)
@@ -165,7 +176,9 @@ func (m *ServerConfig) GetUserLevel() uint32 {
 	return 0
 }
 
+// ClientConfig is the protobuf config for Socks client.
 type ClientConfig struct {
+	// Sever is a list of Socks server addresses.
 	Server               []*protocol.ServerEndpoint `protobuf:"bytes,1,rep,name=server,proto3" json:"server,omitempty"`
 	XXX_NoUnkeyedLiteral struct{}                   `json:"-"`
 	XXX_unrecognized     []byte                     `json:"-"`
@@ -176,16 +189,17 @@ func (m *ClientConfig) Reset()         { *m = ClientConfig{} }
 func (m *ClientConfig) String() string { return proto.CompactTextString(m) }
 func (*ClientConfig) ProtoMessage()    {}
 func (*ClientConfig) Descriptor() ([]byte, []int) {
-	return fileDescriptor_config_5b5632820a3cc171, []int{2}
+	return fileDescriptor_e86958e2cebd3303, []int{2}
 }
+
 func (m *ClientConfig) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_ClientConfig.Unmarshal(m, b)
 }
 func (m *ClientConfig) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 	return xxx_messageInfo_ClientConfig.Marshal(b, m, deterministic)
 }
-func (dst *ClientConfig) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_ClientConfig.Merge(dst, src)
+func (m *ClientConfig) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_ClientConfig.Merge(m, src)
 }
 func (m *ClientConfig) XXX_Size() int {
 	return xxx_messageInfo_ClientConfig.Size(m)
@@ -204,18 +218,18 @@ func (m *ClientConfig) GetServer() []*protocol.ServerEndpoint {
 }
 
 func init() {
+	proto.RegisterEnum("v2ray.core.proxy.socks.AuthType", AuthType_name, AuthType_value)
 	proto.RegisterType((*Account)(nil), "v2ray.core.proxy.socks.Account")
 	proto.RegisterType((*ServerConfig)(nil), "v2ray.core.proxy.socks.ServerConfig")
 	proto.RegisterMapType((map[string]string)(nil), "v2ray.core.proxy.socks.ServerConfig.AccountsEntry")
 	proto.RegisterType((*ClientConfig)(nil), "v2ray.core.proxy.socks.ClientConfig")
-	proto.RegisterEnum("v2ray.core.proxy.socks.AuthType", AuthType_name, AuthType_value)
 }
 
 func init() {
-	proto.RegisterFile("v2ray.com/core/proxy/socks/config.proto", fileDescriptor_config_5b5632820a3cc171)
+	proto.RegisterFile("v2ray.com/core/proxy/socks/config.proto", fileDescriptor_e86958e2cebd3303)
 }
 
-var fileDescriptor_config_5b5632820a3cc171 = []byte{
+var fileDescriptor_e86958e2cebd3303 = []byte{
 	// 470 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x74, 0x52, 0x5d, 0x8b, 0xd3, 0x40,
 	0x14, 0x75, 0xb2, 0xb6, 0x4d, 0x6f, 0xbb, 0x52, 0x06, 0x59, 0x42, 0x51, 0x8c, 0x05, 0xb1, 0xec,

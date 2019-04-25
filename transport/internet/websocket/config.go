@@ -1,3 +1,5 @@
+// +build !confonly
+
 package websocket
 
 import (
@@ -6,6 +8,8 @@ import (
 	"v2ray.com/core/common"
 	"v2ray.com/core/transport/internet"
 )
+
+const protocolName = "websocket"
 
 func (c *Config) GetNormalizedPath() string {
 	path := c.Path
@@ -27,7 +31,7 @@ func (c *Config) GetRequestHeader() http.Header {
 }
 
 func init() {
-	common.Must(internet.RegisterProtocolConfigCreator(internet.TransportProtocol_WebSocket, func() interface{} {
+	common.Must(internet.RegisterProtocolConfigCreator(protocolName, func() interface{} {
 		return new(Config)
 	}))
 }

@@ -1,10 +1,11 @@
+// +build !confonly
+
 package kcp
 
 import (
 	"container/list"
 	"sync"
 
-	"v2ray.com/core/common"
 	"v2ray.com/core/common/buf"
 )
 
@@ -261,7 +262,7 @@ func (w *SendingWorker) ProcessSegment(current uint32, seg *AckSegment, rto uint
 	}
 }
 
-func (w *SendingWorker) Push(mb *buf.MultiBuffer) bool {
+func (w *SendingWorker) Push(b *buf.Buffer) bool {
 	w.Lock()
 	defer w.Unlock()
 
@@ -273,10 +274,6 @@ func (w *SendingWorker) Push(mb *buf.MultiBuffer) bool {
 		return false
 	}
 
-	b := buf.New()
-	common.Must(b.Reset(func(v []byte) (int, error) {
-		return mb.Read(v[:w.conn.mss])
-	}))
 	w.window.Push(w.nextNumber, b)
 	w.nextNumber++
 	return true

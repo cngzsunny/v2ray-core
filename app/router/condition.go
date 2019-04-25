@@ -1,20 +1,19 @@
+// +build !confonly
+
 package router
 
 import (
-	"context"
 	"strings"
-	"sync"
-	"time"
 
-	"v2ray.com/core/app/dispatcher"
+	"go.starlark.net/starlark"
+	"go.starlark.net/syntax"
+
 	"v2ray.com/core/common/net"
-	"v2ray.com/core/common/protocol"
 	"v2ray.com/core/common/strmatcher"
-	"v2ray.com/core/proxy"
 )
 
 type Condition interface {
-	Apply(ctx context.Context) bool
+	Apply(ctx *Context) bool
 }
 
 type ConditionChan []Condition
@@ -29,7 +28,7 @@ func (v *ConditionChan) Add(cond Condition) *ConditionChan {
 	return v
 }
 
-func (v *ConditionChan) Apply(ctx context.Context) bool {
+func (v *ConditionChan) Apply(ctx *Context) bool {
 	for _, cond := range *v {
 		if !cond.Apply(ctx) {
 			return false
@@ -42,278 +41,152 @@ func (v *ConditionChan) Len() int {
 	return len(*v)
 }
 
-type AnyCondition []Condition
-
-func NewAnyCondition() *AnyCondition {
-	var anyCond AnyCondition = make([]Condition, 0, 8)
-	return &anyCond
-}
-
-func (v *AnyCondition) Add(cond Condition) *AnyCondition {
-	*v = append(*v, cond)
-	return v
-}
-
-func (v *AnyCondition) Apply(ctx context.Context) bool {
-	for _, cond := range *v {
-		if cond.Apply(ctx) {
-			return true
-		}
-	}
-	return false
-}
-
-func (v *AnyCondition) Len() int {
-	return len(*v)
-}
-
-type timedResult struct {
-	timestamp time.Time
-	result    bool
-}
-
-type CachableDomainMatcher struct {
-	sync.Mutex
-	matchers *strmatcher.MatcherGroup
-	cache    map[string]timedResult
-	lastScan time.Time
-}
-
-func NewCachableDomainMatcher() *CachableDomainMatcher {
-	return &CachableDomainMatcher{
-		matchers: strmatcher.NewMatcherGroup(),
-		cache:    make(map[string]timedResult, 512),
-	}
-}
-
 var matcherTypeMap = map[Domain_Type]strmatcher.Type{
 	Domain_Plain:  strmatcher.Substr,
 	Domain_Regex:  strmatcher.Regex,
 	Domain_Domain: strmatcher.Domain,
+	Domain_Full:   strmatcher.Full,
 }
 
-func (m *CachableDomainMatcher) Add(domain *Domain) error {
+func domainToMatcher(domain *Domain) (strmatcher.Matcher, error) {
 	matcherType, f := matcherTypeMap[domain.Type]
 	if !f {
-		return newError("unsupported domain type", domain.Type)
+		return nil, newError("unsupported domain type", domain.Type)
 	}
 
 	matcher, err := matcherType.New(domain.Value)
 	if err != nil {
-		return newError("failed to create domain matcher").Base(err)
+		return nil, newError("failed to create domain matcher").Base(err)
 	}
 
-	m.matchers.Add(matcher)
-	return nil
+	return matcher, nil
 }
 
-func (m *CachableDomainMatcher) applyInternal(domain string) bool {
+type DomainMatcher struct {
+	matchers strmatcher.IndexMatcher
+}
+
+func NewDomainMatcher(domains []*Domain) (*DomainMatcher, error) {
+	g := new(strmatcher.MatcherGroup)
+	for _, d := range domains {
+		m, err := domainToMatcher(d)
+		if err != nil {
+			return nil, err
+		}
+		g.Add(m)
+	}
+
+	return &DomainMatcher{
+		matchers: g,
+	}, nil
+}
+
+func (m *DomainMatcher) ApplyDomain(domain string) bool {
 	return m.matchers.Match(domain) > 0
 }
 
-type cacheResult int
-
-const (
-	cacheMiss cacheResult = iota
-	cacheHitTrue
-	cacheHitFalse
-)
-
-func (m *CachableDomainMatcher) findInCache(domain string) cacheResult {
-	m.Lock()
-	defer m.Unlock()
-
-	r, f := m.cache[domain]
-	if !f {
-		return cacheMiss
-	}
-	r.timestamp = time.Now()
-	m.cache[domain] = r
-
-	if r.result {
-		return cacheHitTrue
-	}
-	return cacheHitFalse
-}
-
-func (m *CachableDomainMatcher) ApplyDomain(domain string) bool {
-	if m.matchers.Size() < 64 {
-		return m.applyInternal(domain)
-	}
-
-	cr := m.findInCache(domain)
-
-	if cr == cacheHitTrue {
-		return true
-	}
-
-	if cr == cacheHitFalse {
+func (m *DomainMatcher) Apply(ctx *Context) bool {
+	if ctx.Outbound == nil || !ctx.Outbound.Target.IsValid() {
 		return false
 	}
-
-	r := m.applyInternal(domain)
-	m.Lock()
-	defer m.Unlock()
-
-	m.cache[domain] = timedResult{
-		result:    r,
-		timestamp: time.Now(),
-	}
-
-	now := time.Now()
-	if len(m.cache) > 256 && now.Sub(m.lastScan)/time.Second > 5 {
-		now := time.Now()
-
-		for k, v := range m.cache {
-			if now.Sub(v.timestamp)/time.Second > 60 {
-				delete(m.cache, k)
-			}
-		}
-
-		m.lastScan = now
-	}
-
-	return r
-}
-
-func (m *CachableDomainMatcher) Apply(ctx context.Context) bool {
-	dest, ok := proxy.TargetFromContext(ctx)
-	if !ok {
-		return false
-	}
-
+	dest := ctx.Outbound.Target
 	if !dest.Address.Family().IsDomain() {
 		return false
 	}
 	return m.ApplyDomain(dest.Address.Domain())
 }
 
-type CIDRMatcher struct {
-	cidr     *net.IPNet
-	onSource bool
-}
-
-func NewCIDRMatcher(ip []byte, mask uint32, onSource bool) (*CIDRMatcher, error) {
-	cidr := &net.IPNet{
-		IP:   net.IP(ip),
-		Mask: net.CIDRMask(int(mask), len(ip)*8),
+func getIPsFromSource(ctx *Context) []net.IP {
+	if ctx.Inbound == nil || !ctx.Inbound.Source.IsValid() {
+		return nil
 	}
-	return &CIDRMatcher{
-		cidr:     cidr,
-		onSource: onSource,
-	}, nil
+	dest := ctx.Inbound.Source
+	if dest.Address.Family().IsDomain() {
+		return nil
+	}
+
+	return []net.IP{dest.Address.IP()}
 }
 
-func (v *CIDRMatcher) Apply(ctx context.Context) bool {
-	ips := make([]net.IP, 0, 4)
-	if resolver, ok := proxy.ResolvedIPsFromContext(ctx); ok {
-		resolvedIPs := resolver.Resolve()
-		for _, rip := range resolvedIPs {
-			if !rip.Family().IsIPv6() {
-				continue
-			}
-			ips = append(ips, rip.IP())
+func getIPsFromTarget(ctx *Context) []net.IP {
+	return ctx.GetTargetIPs()
+}
+
+type MultiGeoIPMatcher struct {
+	matchers []*GeoIPMatcher
+	ipFunc   func(*Context) []net.IP
+}
+
+func NewMultiGeoIPMatcher(geoips []*GeoIP, onSource bool) (*MultiGeoIPMatcher, error) {
+	var matchers []*GeoIPMatcher
+	for _, geoip := range geoips {
+		matcher, err := globalGeoIPContainer.Add(geoip)
+		if err != nil {
+			return nil, err
 		}
+		matchers = append(matchers, matcher)
 	}
 
-	var dest net.Destination
-	var ok bool
-	if v.onSource {
-		dest, ok = proxy.SourceFromContext(ctx)
+	matcher := &MultiGeoIPMatcher{
+		matchers: matchers,
+	}
+
+	if onSource {
+		matcher.ipFunc = getIPsFromSource
 	} else {
-		dest, ok = proxy.TargetFromContext(ctx)
+		matcher.ipFunc = getIPsFromTarget
 	}
 
-	if ok && dest.Address.Family().IsIPv6() {
-		ips = append(ips, dest.Address.IP())
-	}
+	return matcher, nil
+}
+
+func (m *MultiGeoIPMatcher) Apply(ctx *Context) bool {
+	ips := m.ipFunc(ctx)
 
 	for _, ip := range ips {
-		if v.cidr.Contains(ip) {
-			return true
-		}
-	}
-	return false
-}
-
-type IPv4Matcher struct {
-	ipv4net  *net.IPNetTable
-	onSource bool
-}
-
-func NewIPv4Matcher(ipnet *net.IPNetTable, onSource bool) *IPv4Matcher {
-	return &IPv4Matcher{
-		ipv4net:  ipnet,
-		onSource: onSource,
-	}
-}
-
-func (v *IPv4Matcher) Apply(ctx context.Context) bool {
-	ips := make([]net.IP, 0, 4)
-	if resolver, ok := proxy.ResolvedIPsFromContext(ctx); ok {
-		resolvedIPs := resolver.Resolve()
-		for _, rip := range resolvedIPs {
-			if !rip.Family().IsIPv4() {
-				continue
+		for _, matcher := range m.matchers {
+			if matcher.Match(ip) {
+				return true
 			}
-			ips = append(ips, rip.IP())
-		}
-	}
-
-	var dest net.Destination
-	var ok bool
-	if v.onSource {
-		dest, ok = proxy.SourceFromContext(ctx)
-	} else {
-		dest, ok = proxy.TargetFromContext(ctx)
-	}
-
-	if ok && dest.Address.Family().IsIPv4() {
-		ips = append(ips, dest.Address.IP())
-	}
-
-	for _, ip := range ips {
-		if v.ipv4net.Contains(ip) {
-			return true
 		}
 	}
 	return false
 }
 
 type PortMatcher struct {
-	port net.PortRange
+	port net.MemoryPortList
 }
 
-func NewPortMatcher(portRange net.PortRange) *PortMatcher {
+func NewPortMatcher(list *net.PortList) *PortMatcher {
 	return &PortMatcher{
-		port: portRange,
+		port: net.PortListFromProto(list),
 	}
 }
 
-func (v *PortMatcher) Apply(ctx context.Context) bool {
-	dest, ok := proxy.TargetFromContext(ctx)
-	if !ok {
+func (v *PortMatcher) Apply(ctx *Context) bool {
+	if ctx.Outbound == nil || !ctx.Outbound.Target.IsValid() {
 		return false
 	}
-	return v.port.Contains(dest.Port)
+	return v.port.Contains(ctx.Outbound.Target.Port)
 }
 
 type NetworkMatcher struct {
-	network *net.NetworkList
+	list [8]bool
 }
 
-func NewNetworkMatcher(network *net.NetworkList) *NetworkMatcher {
-	return &NetworkMatcher{
-		network: network,
+func NewNetworkMatcher(network []net.Network) NetworkMatcher {
+	var matcher NetworkMatcher
+	for _, n := range network {
+		matcher.list[int(n)] = true
 	}
+	return matcher
 }
 
-func (v *NetworkMatcher) Apply(ctx context.Context) bool {
-	dest, ok := proxy.TargetFromContext(ctx)
-	if !ok {
+func (v NetworkMatcher) Apply(ctx *Context) bool {
+	if ctx.Outbound == nil || !ctx.Outbound.Target.IsValid() {
 		return false
 	}
-	return v.network.HasNetwork(dest.Network)
+	return v.list[int(ctx.Outbound.Target.Network)]
 }
 
 type UserMatcher struct {
@@ -332,8 +205,12 @@ func NewUserMatcher(users []string) *UserMatcher {
 	}
 }
 
-func (v *UserMatcher) Apply(ctx context.Context) bool {
-	user := protocol.UserFromContext(ctx)
+func (v *UserMatcher) Apply(ctx *Context) bool {
+	if ctx.Inbound == nil {
+		return false
+	}
+
+	user := ctx.Inbound.User
 	if user == nil {
 		return false
 	}
@@ -361,12 +238,11 @@ func NewInboundTagMatcher(tags []string) *InboundTagMatcher {
 	}
 }
 
-func (v *InboundTagMatcher) Apply(ctx context.Context) bool {
-	tag, ok := proxy.InboundTagFromContext(ctx)
-	if !ok {
+func (v *InboundTagMatcher) Apply(ctx *Context) bool {
+	if ctx.Inbound == nil || len(ctx.Inbound.Tag) == 0 {
 		return false
 	}
-
+	tag := ctx.Inbound.Tag
 	for _, t := range v.tags {
 		if t == tag {
 			return true
@@ -393,14 +269,12 @@ func NewProtocolMatcher(protocols []string) *ProtocolMatcher {
 	}
 }
 
-func (m *ProtocolMatcher) Apply(ctx context.Context) bool {
-	result := dispatcher.SniffingResultFromContext(ctx)
-
-	if result == nil {
+func (m *ProtocolMatcher) Apply(ctx *Context) bool {
+	if ctx.Content == nil {
 		return false
 	}
 
-	protocol := result.Protocol()
+	protocol := ctx.Content.Protocol
 	for _, p := range m.protocols {
 		if strings.HasPrefix(protocol, p) {
 			return true
@@ -408,4 +282,61 @@ func (m *ProtocolMatcher) Apply(ctx context.Context) bool {
 	}
 
 	return false
+}
+
+type AttributeMatcher struct {
+	program *starlark.Program
+}
+
+func NewAttributeMatcher(code string) (*AttributeMatcher, error) {
+	starFile, err := syntax.Parse("attr.star", "satisfied=("+code+")", 0)
+	if err != nil {
+		return nil, newError("attr rule").Base(err)
+	}
+	p, err := starlark.FileProgram(starFile, func(name string) bool {
+		if name == "attrs" {
+			return true
+		}
+		return false
+	})
+	if err != nil {
+		return nil, err
+	}
+	return &AttributeMatcher{
+		program: p,
+	}, nil
+}
+
+func (m *AttributeMatcher) Match(attrs map[string]interface{}) bool {
+	attrsDict := new(starlark.Dict)
+	for key, value := range attrs {
+		var starValue starlark.Value
+		switch value := value.(type) {
+		case string:
+			starValue = starlark.String(value)
+		}
+		if starValue != nil {
+			attrsDict.SetKey(starlark.String(key), starValue)
+		}
+	}
+
+	predefined := make(starlark.StringDict)
+	predefined["attrs"] = attrsDict
+
+	thread := &starlark.Thread{
+		Name: "matcher",
+	}
+	results, err := m.program.Init(thread, predefined)
+	if err != nil {
+		newError("attr matcher").Base(err).WriteToLog()
+	}
+	satisfied := results["satisfied"]
+	return satisfied != nil && bool(satisfied.Truth())
+}
+
+func (m *AttributeMatcher) Apply(ctx *Context) bool {
+	if ctx.Content == nil {
+		return false
+	}
+	return m.Match(ctx.Content.Attributes)
 }

@@ -1,6 +1,8 @@
+// +build !confonly
+
 package command
 
-//go:generate go run $GOPATH/src/v2ray.com/core/common/errors/errorgen/main.go -pkg command -path App,Stats,Command
+//go:generate errorgen
 
 import (
 	"context"
@@ -11,14 +13,15 @@ import (
 	"v2ray.com/core/app/stats"
 	"v2ray.com/core/common"
 	"v2ray.com/core/common/strmatcher"
+	feature_stats "v2ray.com/core/features/stats"
 )
 
 // statsServer is an implementation of StatsService.
 type statsServer struct {
-	stats core.StatManager
+	stats feature_stats.Manager
 }
 
-func NewStatsServer(manager core.StatManager) StatsServiceServer {
+func NewStatsServer(manager feature_stats.Manager) StatsServiceServer {
 	return &statsServer{stats: manager}
 }
 
@@ -54,7 +57,7 @@ func (s *statsServer) QueryStats(ctx context.Context, request *QueryStatsRequest
 		return nil, newError("QueryStats only works its own stats.Manager.")
 	}
 
-	manager.Visit(func(name string, c core.StatCounter) bool {
+	manager.Visit(func(name string, c feature_stats.Counter) bool {
 		if matcher.Match(name) {
 			var value int64
 			if request.Reset_ {
@@ -74,16 +77,21 @@ func (s *statsServer) QueryStats(ctx context.Context, request *QueryStatsRequest
 }
 
 type service struct {
-	v *core.Instance
+	statsManager feature_stats.Manager
 }
 
 func (s *service) Register(server *grpc.Server) {
-	RegisterStatsServiceServer(server, NewStatsServer(s.v.Stats()))
+	RegisterStatsServiceServer(server, NewStatsServer(s.statsManager))
 }
 
 func init() {
 	common.Must(common.RegisterConfig((*Config)(nil), func(ctx context.Context, cfg interface{}) (interface{}, error) {
-		s := core.MustFromContext(ctx)
-		return &service{v: s}, nil
+		s := new(service)
+
+		core.RequireFeatures(ctx, func(sm feature_stats.Manager) {
+			s.statsManager = sm
+		})
+
+		return s, nil
 	}))
 }

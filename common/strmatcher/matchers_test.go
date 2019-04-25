@@ -5,12 +5,9 @@ import (
 
 	"v2ray.com/core/common"
 	. "v2ray.com/core/common/strmatcher"
-	ast "v2ray.com/ext/assert"
 )
 
 func TestMatcher(t *testing.T) {
-	assert := ast.With(t)
-
 	cases := []struct {
 		pattern string
 		mType   Type
@@ -59,10 +56,18 @@ func TestMatcher(t *testing.T) {
 			input:   "xv2ray.com",
 			output:  false,
 		},
+		{
+			pattern: "v2ray.com",
+			mType:   Regex,
+			input:   "v2rayxcom",
+			output:  true,
+		},
 	}
 	for _, test := range cases {
 		matcher, err := test.mType.New(test.pattern)
 		common.Must(err)
-		assert(matcher.Match(test.input) == test.output, ast.IsTrue)
+		if m := matcher.Match(test.input); m != test.output {
+			t.Error("unexpected output: ", m, " for test case ", test)
+		}
 	}
 }

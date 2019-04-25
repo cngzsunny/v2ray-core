@@ -1,11 +1,13 @@
+// +build !confonly
+
 package kcp
 
 import (
 	"crypto/cipher"
+	"encoding/binary"
 	"hash/fnv"
 
 	"v2ray.com/core/common"
-	"v2ray.com/core/common/serial"
 )
 
 // SimpleAuthenticator is a legacy AEAD used for KCP encryption.
@@ -28,8 +30,8 @@ func (*SimpleAuthenticator) Overhead() int {
 
 // Seal implements cipher.AEAD.Seal().
 func (a *SimpleAuthenticator) Seal(dst, nonce, plain, extra []byte) []byte {
-	dst = append(dst, 0, 0, 0, 0)
-	dst = serial.Uint16ToBytes(uint16(len(plain)), dst)
+	dst = append(dst, 0, 0, 0, 0, 0, 0) // 4 bytes for hash, and then 2 bytes for length
+	binary.BigEndian.PutUint16(dst[4:], uint16(len(plain)))
 	dst = append(dst, plain...)
 
 	fnvHash := fnv.New32a()
@@ -63,11 +65,11 @@ func (a *SimpleAuthenticator) Open(dst, nonce, cipherText, extra []byte) ([]byte
 
 	fnvHash := fnv.New32a()
 	common.Must2(fnvHash.Write(dst[4:]))
-	if serial.BytesToUint32(dst[:4]) != fnvHash.Sum32() {
+	if binary.BigEndian.Uint32(dst[:4]) != fnvHash.Sum32() {
 		return nil, newError("invalid auth")
 	}
 
-	length := serial.BytesToUint16(dst[4:6])
+	length := binary.BigEndian.Uint16(dst[4:6])
 	if len(dst)-6 != int(length) {
 		return nil, newError("invalid auth")
 	}

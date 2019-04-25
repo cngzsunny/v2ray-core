@@ -1,6 +1,8 @@
+// +build !confonly
+
 package commander
 
-//go:generate go run $GOPATH/src/v2ray.com/core/common/errors/errorgen/main.go -pkg commander -path App,Commander
+//go:generate errorgen
 
 import (
 	"context"
@@ -8,31 +10,48 @@ import (
 	"sync"
 
 	"google.golang.org/grpc"
+
 	"v2ray.com/core"
 	"v2ray.com/core/common"
 	"v2ray.com/core/common/signal/done"
+	"v2ray.com/core/features/outbound"
 )
 
 // Commander is a V2Ray feature that provides gRPC methods to external clients.
 type Commander struct {
 	sync.Mutex
-	server *grpc.Server
-	config Config
-	v      *core.Instance
-	ohm    core.OutboundHandlerManager
+	server   *grpc.Server
+	services []Service
+	ohm      outbound.Manager
+	tag      string
 }
 
 // NewCommander creates a new Commander based on the given config.
 func NewCommander(ctx context.Context, config *Config) (*Commander, error) {
-	v := core.MustFromContext(ctx)
 	c := &Commander{
-		config: *config,
-		ohm:    v.OutboundHandlerManager(),
-		v:      v,
+		tag: config.Tag,
 	}
-	if err := v.RegisterFeature((*Commander)(nil), c); err != nil {
-		return nil, err
+
+	common.Must(core.RequireFeatures(ctx, func(om outbound.Manager) {
+		c.ohm = om
+	}))
+
+	for _, rawConfig := range config.Service {
+		config, err := rawConfig.GetInstance()
+		if err != nil {
+			return nil, err
+		}
+		rawService, err := common.CreateObject(ctx, config)
+		if err != nil {
+			return nil, err
+		}
+		service, ok := rawService.(Service)
+		if !ok {
+			return nil, newError("not a Service.")
+		}
+		c.services = append(c.services, service)
 	}
+
 	return c, nil
 }
 
@@ -45,19 +64,7 @@ func (c *Commander) Type() interface{} {
 func (c *Commander) Start() error {
 	c.Lock()
 	c.server = grpc.NewServer()
-	for _, rawConfig := range c.config.Service {
-		config, err := rawConfig.GetInstance()
-		if err != nil {
-			return err
-		}
-		rawService, err := core.CreateObject(c.v, config)
-		if err != nil {
-			return err
-		}
-		service, ok := rawService.(Service)
-		if !ok {
-			return newError("not a Service.")
-		}
+	for _, service := range c.services {
 		service.Register(c.server)
 	}
 	c.Unlock()
@@ -73,12 +80,12 @@ func (c *Commander) Start() error {
 		}
 	}()
 
-	if err := c.ohm.RemoveHandler(context.Background(), c.config.Tag); err != nil {
+	if err := c.ohm.RemoveHandler(context.Background(), c.tag); err != nil {
 		newError("failed to remove existing handler").WriteToLog()
 	}
 
 	return c.ohm.AddHandler(context.Background(), &Outbound{
-		tag:      c.config.Tag,
+		tag:      c.tag,
 		listener: listener,
 	})
 }

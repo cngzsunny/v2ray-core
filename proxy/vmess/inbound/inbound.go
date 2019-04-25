@@ -1,6 +1,8 @@
+// +build !confonly
+
 package inbound
 
-//go:generate go run $GOPATH/src/v2ray.com/core/common/errors/errorgen/main.go -pkg inbound -path Proxy,VMess,Inbound
+//go:generate errorgen
 
 import (
 	"context"
@@ -16,33 +18,34 @@ import (
 	"v2ray.com/core/common/log"
 	"v2ray.com/core/common/net"
 	"v2ray.com/core/common/protocol"
-	"v2ray.com/core/common/serial"
 	"v2ray.com/core/common/session"
 	"v2ray.com/core/common/signal"
 	"v2ray.com/core/common/task"
 	"v2ray.com/core/common/uuid"
+	feature_inbound "v2ray.com/core/features/inbound"
+	"v2ray.com/core/features/policy"
+	"v2ray.com/core/features/routing"
 	"v2ray.com/core/proxy/vmess"
 	"v2ray.com/core/proxy/vmess/encoding"
 	"v2ray.com/core/transport/internet"
-	"v2ray.com/core/transport/pipe"
 )
 
 type userByEmail struct {
 	sync.Mutex
-	cache           map[string]*protocol.User
+	cache           map[string]*protocol.MemoryUser
 	defaultLevel    uint32
 	defaultAlterIDs uint16
 }
 
 func newUserByEmail(config *DefaultConfig) *userByEmail {
 	return &userByEmail{
-		cache:           make(map[string]*protocol.User),
+		cache:           make(map[string]*protocol.MemoryUser),
 		defaultLevel:    config.Level,
 		defaultAlterIDs: uint16(config.AlterId),
 	}
 }
 
-func (v *userByEmail) addNoLock(u *protocol.User) bool {
+func (v *userByEmail) addNoLock(u *protocol.MemoryUser) bool {
 	email := strings.ToLower(u.Email)
 	user, found := v.cache[email]
 	if found {
@@ -52,14 +55,14 @@ func (v *userByEmail) addNoLock(u *protocol.User) bool {
 	return true
 }
 
-func (v *userByEmail) Add(u *protocol.User) bool {
+func (v *userByEmail) Add(u *protocol.MemoryUser) bool {
 	v.Lock()
 	defer v.Unlock()
 
 	return v.addNoLock(u)
 }
 
-func (v *userByEmail) Get(email string) (*protocol.User, bool) {
+func (v *userByEmail) Get(email string) (*protocol.MemoryUser, bool) {
 	email = strings.ToLower(email)
 
 	v.Lock()
@@ -68,14 +71,16 @@ func (v *userByEmail) Get(email string) (*protocol.User, bool) {
 	user, found := v.cache[email]
 	if !found {
 		id := uuid.New()
-		account := &vmess.Account{
+		rawAccount := &vmess.Account{
 			Id:      id.String(),
 			AlterId: uint32(v.defaultAlterIDs),
 		}
-		user = &protocol.User{
+		account, err := rawAccount.AsAccount()
+		common.Must(err)
+		user = &protocol.MemoryUser{
 			Level:   v.defaultLevel,
 			Email:   email,
-			Account: serial.ToTypedMessage(account),
+			Account: account,
 		}
 		v.cache[email] = user
 	}
@@ -97,8 +102,8 @@ func (v *userByEmail) Remove(email string) bool {
 
 // Handler is an inbound connection handler that handles messages in VMess protocol.
 type Handler struct {
-	policyManager         core.PolicyManager
-	inboundHandlerManager core.InboundHandlerManager
+	policyManager         policy.Manager
+	inboundHandlerManager feature_inbound.Manager
 	clients               *vmess.TimedUserValidator
 	usersByEmail          *userByEmail
 	detours               *DetourConfig
@@ -110,8 +115,8 @@ type Handler struct {
 func New(ctx context.Context, config *Config) (*Handler, error) {
 	v := core.MustFromContext(ctx)
 	handler := &Handler{
-		policyManager:         v.PolicyManager(),
-		inboundHandlerManager: v.InboundHandlerManager(),
+		policyManager:         v.GetFeature(policy.ManagerType()).(policy.Manager),
+		inboundHandlerManager: v.GetFeature(feature_inbound.ManagerType()).(feature_inbound.Manager),
 		clients:               vmess.NewTimedUserValidator(protocol.DefaultIDHash),
 		detours:               config.Detour,
 		usersByEmail:          newUserByEmail(config.GetDefaultValue()),
@@ -120,7 +125,12 @@ func New(ctx context.Context, config *Config) (*Handler, error) {
 	}
 
 	for _, user := range config.User {
-		if err := handler.AddUser(ctx, user); err != nil {
+		mUser, err := user.ToMemoryUser()
+		if err != nil {
+			return nil, newError("failed to get VMess user").Base(err)
+		}
+
+		if err := handler.AddUser(ctx, mUser); err != nil {
 			return nil, newError("failed to initiate user").Base(err)
 		}
 	}
@@ -130,20 +140,18 @@ func New(ctx context.Context, config *Config) (*Handler, error) {
 
 // Close implements common.Closable.
 func (h *Handler) Close() error {
-	common.Close(h.clients)
-	common.Close(h.sessionHistory)
-	common.Close(h.usersByEmail)
-	return nil
+	return errors.Combine(
+		h.clients.Close(),
+		h.sessionHistory.Close(),
+		common.Close(h.usersByEmail))
 }
 
 // Network implements proxy.Inbound.Network().
-func (*Handler) Network() net.NetworkList {
-	return net.NetworkList{
-		Network: []net.Network{net.Network_TCP},
-	}
+func (*Handler) Network() []net.Network {
+	return []net.Network{net.Network_TCP}
 }
 
-func (h *Handler) GetUser(email string) *protocol.User {
+func (h *Handler) GetUser(email string) *protocol.MemoryUser {
 	user, existing := h.usersByEmail.Get(email)
 	if !existing {
 		h.clients.Add(user)
@@ -151,7 +159,7 @@ func (h *Handler) GetUser(email string) *protocol.User {
 	return user
 }
 
-func (h *Handler) AddUser(ctx context.Context, user *protocol.User) error {
+func (h *Handler) AddUser(ctx context.Context, user *protocol.MemoryUser) error {
 	if len(user.Email) > 0 && !h.usersByEmail.Add(user) {
 		return newError("User ", user.Email, " already exists.")
 	}
@@ -169,15 +177,7 @@ func (h *Handler) RemoveUser(ctx context.Context, email string) error {
 	return nil
 }
 
-func transferRequest(timer signal.ActivityUpdater, session *encoding.ServerSession, request *protocol.RequestHeader, input io.Reader, output buf.Writer) error {
-	bodyReader := session.DecodeRequestBody(request, input)
-	if err := buf.Copy(bodyReader, output, buf.UpdateActivity(timer)); err != nil {
-		return newError("failed to transfer request").Base(err)
-	}
-	return nil
-}
-
-func transferResponse(timer signal.ActivityUpdater, session *encoding.ServerSession, request *protocol.RequestHeader, response *protocol.ResponseHeader, input buf.Reader, output io.Writer) error {
+func transferResponse(timer signal.ActivityUpdater, session *encoding.ServerSession, request *protocol.RequestHeader, response *protocol.ResponseHeader, input buf.Reader, output *buf.BufferedWriter) error {
 	session.EncodeResponseHeader(response, output)
 
 	bodyWriter := session.EncodeResponseBody(request, output)
@@ -194,10 +194,8 @@ func transferResponse(timer signal.ActivityUpdater, session *encoding.ServerSess
 		}
 	}
 
-	if bufferedWriter, ok := output.(*buf.BufferedWriter); ok {
-		if err := bufferedWriter.SetBuffered(false); err != nil {
-			return err
-		}
+	if err := output.SetBuffered(false); err != nil {
+		return err
 	}
 
 	if err := buf.Copy(input, bodyWriter, buf.UpdateActivity(timer)); err != nil {
@@ -213,19 +211,18 @@ func transferResponse(timer signal.ActivityUpdater, session *encoding.ServerSess
 	return nil
 }
 
-func isInecureEncryption(s protocol.SecurityType) bool {
+func isInsecureEncryption(s protocol.SecurityType) bool {
 	return s == protocol.SecurityType_NONE || s == protocol.SecurityType_LEGACY || s == protocol.SecurityType_UNKNOWN
 }
 
 // Process implements proxy.Inbound.Process().
-func (h *Handler) Process(ctx context.Context, network net.Network, connection internet.Connection, dispatcher core.Dispatcher) error {
+func (h *Handler) Process(ctx context.Context, network net.Network, connection internet.Connection, dispatcher routing.Dispatcher) error {
 	sessionPolicy := h.policyManager.ForLevel(0)
 	if err := connection.SetReadDeadline(time.Now().Add(sessionPolicy.Timeouts.Handshake)); err != nil {
 		return newError("unable to set read deadline").Base(err).AtWarning()
 	}
 
 	reader := &buf.BufferedReader{Reader: buf.NewReader(connection)}
-
 	svrSession := encoding.NewServerSession(h.clients, h.sessionHistory)
 	request, err := svrSession.DecodeRequestHeader(reader)
 
@@ -242,7 +239,7 @@ func (h *Handler) Process(ctx context.Context, network net.Network, connection i
 		return err
 	}
 
-	if h.secure && isInecureEncryption(request.Security) {
+	if h.secure && isInsecureEncryption(request.Security) {
 		log.Record(&log.AccessMessage{
 			From:   connection.RemoteAddr(),
 			To:     "",
@@ -267,13 +264,18 @@ func (h *Handler) Process(ctx context.Context, network net.Network, connection i
 		newError("unable to set back read deadline").Base(err).WriteToLog(session.ExportIDToError(ctx))
 	}
 
+	inbound := session.InboundFromContext(ctx)
+	if inbound == nil {
+		panic("no inbound metadata")
+	}
+	inbound.User = request.User
+
 	sessionPolicy = h.policyManager.ForLevel(request.User.Level)
-	ctx = protocol.ContextWithUser(ctx, request.User)
 
 	ctx, cancel := context.WithCancel(ctx)
 	timer := signal.CancelAfterInactivity(ctx, cancel, sessionPolicy.Timeouts.ConnectionIdle)
 
-	ctx = core.ContextWithBufferPolicy(ctx, sessionPolicy.Buffer)
+	ctx = policy.ContextWithBufferPolicy(ctx, sessionPolicy.Buffer)
 	link, err := dispatcher.Dispatch(ctx, request.Destination())
 	if err != nil {
 		return newError("failed to dispatch request to ", request.Destination()).Base(err)
@@ -281,13 +283,19 @@ func (h *Handler) Process(ctx context.Context, network net.Network, connection i
 
 	requestDone := func() error {
 		defer timer.SetTimeout(sessionPolicy.Timeouts.DownlinkOnly)
-		return transferRequest(timer, svrSession, request, reader, link.Writer)
+
+		bodyReader := svrSession.DecodeRequestBody(request, reader)
+		if err := buf.Copy(bodyReader, link.Writer, buf.UpdateActivity(timer)); err != nil {
+			return newError("failed to transfer request").Base(err)
+		}
+		return nil
 	}
 
 	responseDone := func() error {
+		defer timer.SetTimeout(sessionPolicy.Timeouts.UplinkOnly)
+
 		writer := buf.NewBufferedWriter(buf.NewWriter(connection))
 		defer writer.Flush()
-		defer timer.SetTimeout(sessionPolicy.Timeouts.UplinkOnly)
 
 		response := &protocol.ResponseHeader{
 			Command: h.generateCommand(ctx, request),
@@ -295,10 +303,10 @@ func (h *Handler) Process(ctx context.Context, network net.Network, connection i
 		return transferResponse(timer, svrSession, request, response, link.Reader, writer)
 	}
 
-	var requestDonePost = task.Single(requestDone, task.OnSuccess(task.Close(link.Writer)))
-	if err := task.Run(task.WithContext(ctx), task.Parallel(requestDonePost, responseDone))(); err != nil {
-		pipe.CloseError(link.Reader)
-		pipe.CloseError(link.Writer)
+	var requestDonePost = task.OnSuccess(requestDone, task.Close(link.Writer))
+	if err := task.Run(ctx, requestDonePost, responseDone); err != nil {
+		common.Interrupt(link.Reader)
+		common.Interrupt(link.Writer)
 		return newError("connection ends").Base(err)
 	}
 
@@ -326,11 +334,11 @@ func (h *Handler) generateCommand(ctx context.Context, request *protocol.Request
 				if user == nil {
 					return nil
 				}
-				account, _ := user.GetTypedAccount()
+				account := user.Account.(*vmess.MemoryAccount)
 				return &protocol.CommandSwitchAccount{
 					Port:     port,
-					ID:       account.(*vmess.InternalAccount).ID.UUID(),
-					AlterIds: uint16(len(account.(*vmess.InternalAccount).AlterIDs)),
+					ID:       account.ID.UUID(),
+					AlterIds: uint16(len(account.AlterIDs)),
 					Level:    user.Level,
 					ValidMin: byte(availableMin),
 				}

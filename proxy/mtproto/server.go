@@ -1,21 +1,24 @@
+// +build !confonly
+
 package mtproto
 
 import (
+	"bytes"
 	"context"
 	"time"
 
 	"v2ray.com/core"
 	"v2ray.com/core/common"
 	"v2ray.com/core/common/buf"
-	"v2ray.com/core/common/compare"
 	"v2ray.com/core/common/crypto"
 	"v2ray.com/core/common/net"
 	"v2ray.com/core/common/protocol"
 	"v2ray.com/core/common/session"
 	"v2ray.com/core/common/signal"
 	"v2ray.com/core/common/task"
+	"v2ray.com/core/features/policy"
+	"v2ray.com/core/features/routing"
 	"v2ray.com/core/transport/internet"
-	"v2ray.com/core/transport/pipe"
 )
 
 var (
@@ -31,7 +34,7 @@ var (
 type Server struct {
 	user    *protocol.User
 	account *Account
-	policy  core.PolicyManager
+	policy  policy.Manager
 }
 
 func NewServer(ctx context.Context, config *ServerConfig) (*Server, error) {
@@ -54,17 +57,28 @@ func NewServer(ctx context.Context, config *ServerConfig) (*Server, error) {
 	return &Server{
 		user:    user,
 		account: account,
-		policy:  v.PolicyManager(),
+		policy:  v.GetFeature(policy.ManagerType()).(policy.Manager),
 	}, nil
 }
 
-func (s *Server) Network() net.NetworkList {
-	return net.NetworkList{
-		Network: []net.Network{net.Network_TCP},
-	}
+func (s *Server) Network() []net.Network {
+	return []net.Network{net.Network_TCP}
 }
 
-func (s *Server) Process(ctx context.Context, network net.Network, conn internet.Connection, dispatcher core.Dispatcher) error {
+var ctype1 = []byte{0xef, 0xef, 0xef, 0xef}
+var ctype2 = []byte{0xee, 0xee, 0xee, 0xee}
+
+func isValidConnectionType(c [4]byte) bool {
+	if bytes.Equal(c[:], ctype1) {
+		return true
+	}
+	if bytes.Equal(c[:], ctype2) {
+		return true
+	}
+	return false
+}
+
+func (s *Server) Process(ctx context.Context, network net.Network, conn internet.Connection, dispatcher routing.Dispatcher) error {
 	sPolicy := s.policy.ForLevel(s.user.Level)
 
 	if err := conn.SetDeadline(time.Now().Add(sPolicy.Timeouts.Handshake)); err != nil {
@@ -85,8 +99,9 @@ func (s *Server) Process(ctx context.Context, network net.Network, conn internet
 	decryptor := crypto.NewAesCTRStream(auth.DecodingKey[:], auth.DecodingNonce[:])
 	decryptor.XORKeyStream(auth.Header[:], auth.Header[:])
 
-	if !compare.BytesAll(auth.Header[56:60], 0xef) {
-		return newError("invalid connection type: ", auth.Header[56:60])
+	ct := auth.ConnectionType()
+	if !isValidConnectionType(ct) {
+		return newError("invalid connection type: ", ct)
 	}
 
 	dcID := auth.DataCenterID()
@@ -102,7 +117,13 @@ func (s *Server) Process(ctx context.Context, network net.Network, conn internet
 
 	ctx, cancel := context.WithCancel(ctx)
 	timer := signal.CancelAfterInactivity(ctx, cancel, sPolicy.Timeouts.ConnectionIdle)
-	ctx = core.ContextWithBufferPolicy(ctx, sPolicy.Buffer)
+	ctx = policy.ContextWithBufferPolicy(ctx, sPolicy.Buffer)
+
+	sc := SessionContext{
+		ConnectionType: ct,
+		DataCenterID:   dcID,
+	}
+	ctx = ContextWithSessionContext(ctx, sc)
 
 	link, err := dispatcher.Dispatch(ctx, dest)
 	if err != nil {
@@ -124,10 +145,10 @@ func (s *Server) Process(ctx context.Context, network net.Network, conn internet
 		return buf.Copy(link.Reader, writer, buf.UpdateActivity(timer))
 	}
 
-	var responseDoneAndCloseWriter = task.Single(response, task.OnSuccess(task.Close(link.Writer)))
-	if err := task.Run(task.WithContext(ctx), task.Parallel(request, responseDoneAndCloseWriter))(); err != nil {
-		pipe.CloseError(link.Reader)
-		pipe.CloseError(link.Writer)
+	var responseDoneAndCloseWriter = task.OnSuccess(response, task.Close(link.Writer))
+	if err := task.Run(ctx, request, responseDoneAndCloseWriter); err != nil {
+		common.Interrupt(link.Reader)
+		common.Interrupt(link.Writer)
 		return newError("connection ends").Base(err)
 	}
 

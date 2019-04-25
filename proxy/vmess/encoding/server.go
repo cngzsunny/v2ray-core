@@ -1,9 +1,8 @@
 package encoding
 
 import (
-	"crypto/aes"
-	"crypto/cipher"
 	"crypto/md5"
+	"encoding/binary"
 	"hash/fnv"
 	"io"
 	"sync"
@@ -17,7 +16,6 @@ import (
 	"v2ray.com/core/common/crypto"
 	"v2ray.com/core/common/net"
 	"v2ray.com/core/common/protocol"
-	"v2ray.com/core/common/serial"
 	"v2ray.com/core/common/task"
 	"v2ray.com/core/proxy/vmess"
 )
@@ -42,12 +40,8 @@ func NewSessionHistory() *SessionHistory {
 	}
 	h.task = &task.Periodic{
 		Interval: time.Second * 30,
-		Execute: func() error {
-			h.removeExpiredEntries()
-			return nil
-		},
+		Execute:  h.removeExpiredEntries,
 	}
-	common.Must(h.task.Start())
 	return h
 }
 
@@ -58,24 +52,26 @@ func (h *SessionHistory) Close() error {
 
 func (h *SessionHistory) addIfNotExits(session sessionId) bool {
 	h.Lock()
-	defer h.Unlock()
 
 	if expire, found := h.cache[session]; found && expire.After(time.Now()) {
+		h.Unlock()
 		return false
 	}
 
 	h.cache[session] = time.Now().Add(time.Minute * 3)
+	h.Unlock()
+	common.Must(h.task.Start())
 	return true
 }
 
-func (h *SessionHistory) removeExpiredEntries() {
+func (h *SessionHistory) removeExpiredEntries() error {
 	now := time.Now()
 
 	h.Lock()
 	defer h.Unlock()
 
 	if len(h.cache) == 0 {
-		return
+		return newError("nothing to do")
 	}
 
 	for session, expire := range h.cache {
@@ -87,6 +83,8 @@ func (h *SessionHistory) removeExpiredEntries() {
 	if len(h.cache) == 0 {
 		h.cache = make(map[sessionId]time.Time, 128)
 	}
+
+	return nil
 }
 
 // ServerSession keeps information for a session in VMess server.
@@ -127,7 +125,7 @@ func (s *ServerSession) DecodeRequestHeader(reader io.Reader) (*protocol.Request
 	buffer := buf.New()
 	defer buffer.Release()
 
-	if err := buffer.AppendSupplier(buf.ReadFullFrom(reader, protocol.IDBytesLen)); err != nil {
+	if _, err := buffer.ReadFullFrom(reader, protocol.IDBytesLen); err != nil {
 		return nil, newError("failed to read request header").Base(err)
 	}
 
@@ -136,19 +134,14 @@ func (s *ServerSession) DecodeRequestHeader(reader io.Reader) (*protocol.Request
 		return nil, newError("invalid user")
 	}
 
-	timestampHash := md5.New()
-	common.Must2(timestampHash.Write(hashTimestamp(timestamp)))
-	iv := timestampHash.Sum(nil)
-	account, err := user.GetTypedAccount()
-	if err != nil {
-		return nil, newError("failed to get user account").Base(err)
-	}
-	vmessAccount := account.(*vmess.InternalAccount)
+	iv := hashTimestamp(md5.New(), timestamp)
+	vmessAccount := user.Account.(*vmess.MemoryAccount)
 
-	aesStream := crypto.NewAesDecryptionStream(vmessAccount.ID.CmdKey(), iv)
+	aesStream := crypto.NewAesDecryptionStream(vmessAccount.ID.CmdKey(), iv[:])
 	decryptor := crypto.NewCryptionReader(aesStream, reader)
 
-	if err := buffer.Reset(buf.ReadFullFrom(decryptor, 38)); err != nil {
+	buffer.Clear()
+	if _, err := buffer.ReadFullFrom(decryptor, 38); err != nil {
 		return nil, newError("failed to read request header").Base(err)
 	}
 
@@ -186,19 +179,19 @@ func (s *ServerSession) DecodeRequestHeader(reader io.Reader) (*protocol.Request
 	}
 
 	if padingLen > 0 {
-		if err := buffer.AppendSupplier(buf.ReadFullFrom(decryptor, int32(padingLen))); err != nil {
+		if _, err := buffer.ReadFullFrom(decryptor, int32(padingLen)); err != nil {
 			return nil, newError("failed to read padding").Base(err)
 		}
 	}
 
-	if err := buffer.AppendSupplier(buf.ReadFullFrom(decryptor, 4)); err != nil {
+	if _, err := buffer.ReadFullFrom(decryptor, 4); err != nil {
 		return nil, newError("failed to read checksum").Base(err)
 	}
 
 	fnv1a := fnv.New32a()
 	common.Must2(fnv1a.Write(buffer.BytesTo(-4)))
 	actualHash := fnv1a.Sum32()
-	expectedHash := serial.BytesToUint32(buffer.BytesFrom(-4))
+	expectedHash := binary.BigEndian.Uint32(buffer.BytesFrom(-4))
 
 	if actualHash != expectedHash {
 		return nil, newError("invalid auth")
@@ -221,7 +214,7 @@ func (s *ServerSession) DecodeRequestBody(request *protocol.RequestHeader, reade
 	if request.Option.Has(protocol.RequestOptionChunkMasking) {
 		sizeParser = NewShakeSizeParser(s.requestBodyIV[:])
 	}
-	var padding crypto.PaddingLengthGenerator = nil
+	var padding crypto.PaddingLengthGenerator
 	if request.Option.Has(protocol.RequestOptionGlobalPadding) {
 		padding = sizeParser.(crypto.PaddingLengthGenerator)
 	}
@@ -256,8 +249,7 @@ func (s *ServerSession) DecodeRequestBody(request *protocol.RequestHeader, reade
 
 		return buf.NewReader(cryptionReader)
 	case protocol.SecurityType_AES128_GCM:
-		block, _ := aes.NewCipher(s.requestBodyKey[:])
-		aead, _ := cipher.NewGCM(block)
+		aead := crypto.NewAesGcm(s.requestBodyKey[:])
 
 		auth := &crypto.AEADAuthenticator{
 			AEAD:                    aead,
@@ -301,7 +293,7 @@ func (s *ServerSession) EncodeResponseBody(request *protocol.RequestHeader, writ
 	if request.Option.Has(protocol.RequestOptionChunkMasking) {
 		sizeParser = NewShakeSizeParser(s.responseBodyIV[:])
 	}
-	var padding crypto.PaddingLengthGenerator = nil
+	var padding crypto.PaddingLengthGenerator
 	if request.Option.Has(protocol.RequestOptionGlobalPadding) {
 		padding = sizeParser.(crypto.PaddingLengthGenerator)
 	}
@@ -332,10 +324,9 @@ func (s *ServerSession) EncodeResponseBody(request *protocol.RequestHeader, writ
 			return crypto.NewAuthenticationWriter(auth, sizeParser, s.responseWriter, request.Command.TransferType(), padding)
 		}
 
-		return buf.NewWriter(s.responseWriter)
+		return &buf.SequentialWriter{Writer: s.responseWriter}
 	case protocol.SecurityType_AES128_GCM:
-		block, _ := aes.NewCipher(s.responseBodyKey[:])
-		aead, _ := cipher.NewGCM(block)
+		aead := crypto.NewAesGcm(s.responseBodyKey[:])
 
 		auth := &crypto.AEADAuthenticator{
 			AEAD:                    aead,

@@ -1,8 +1,10 @@
 package srtp
 
-import proto "github.com/golang/protobuf/proto"
-import fmt "fmt"
-import math "math"
+import (
+	fmt "fmt"
+	proto "github.com/golang/protobuf/proto"
+	math "math"
+)
 
 // Reference imports to suppress errors if they are not otherwise used.
 var _ = proto.Marshal
@@ -13,7 +15,7 @@ var _ = math.Inf
 // is compatible with the proto package it is being compiled against.
 // A compilation error at this line likely means your copy of the
 // proto package needs to be updated.
-const _ = proto.ProtoPackageIsVersion2 // please upgrade the proto package
+const _ = proto.ProtoPackageIsVersion3 // please upgrade the proto package
 
 type Config struct {
 	Version              uint32   `protobuf:"varint,1,opt,name=version,proto3" json:"version,omitempty"`
@@ -31,16 +33,17 @@ func (m *Config) Reset()         { *m = Config{} }
 func (m *Config) String() string { return proto.CompactTextString(m) }
 func (*Config) ProtoMessage()    {}
 func (*Config) Descriptor() ([]byte, []int) {
-	return fileDescriptor_config_0f831e3f54b6bef6, []int{0}
+	return fileDescriptor_0aa82c2c1e59b567, []int{0}
 }
+
 func (m *Config) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_Config.Unmarshal(m, b)
 }
 func (m *Config) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 	return xxx_messageInfo_Config.Marshal(b, m, deterministic)
 }
-func (dst *Config) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_Config.Merge(dst, src)
+func (m *Config) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_Config.Merge(m, src)
 }
 func (m *Config) XXX_Size() int {
 	return xxx_messageInfo_Config.Size(m)
@@ -98,10 +101,10 @@ func init() {
 }
 
 func init() {
-	proto.RegisterFile("v2ray.com/core/transport/internet/headers/srtp/config.proto", fileDescriptor_config_0f831e3f54b6bef6)
+	proto.RegisterFile("v2ray.com/core/transport/internet/headers/srtp/config.proto", fileDescriptor_0aa82c2c1e59b567)
 }
 
-var fileDescriptor_config_0f831e3f54b6bef6 = []byte{
+var fileDescriptor_0aa82c2c1e59b567 = []byte{
 	// 260 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x8c, 0xd0, 0x31, 0x4b, 0x03, 0x31,
 	0x14, 0x07, 0x70, 0xae, 0xd6, 0xd3, 0x46, 0x5d, 0x32, 0x48, 0x06, 0x85, 0xea, 0x54, 0x3a, 0x24,

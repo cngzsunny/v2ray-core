@@ -1,21 +1,53 @@
 // +build !windows
+// +build !confonly
 
 package tls
 
-import "crypto/x509"
+import (
+	"crypto/x509"
+	"sync"
+)
 
-func (c *Config) getCertPool() *x509.CertPool {
+type rootCertsCache struct {
+	sync.Mutex
+	pool *x509.CertPool
+}
+
+func (c *rootCertsCache) load() (*x509.CertPool, error) {
+	c.Lock()
+	defer c.Unlock()
+
+	if c.pool != nil {
+		return c.pool, nil
+	}
+
 	pool, err := x509.SystemCertPool()
 	if err != nil {
-		newError("failed to get system cert pool.").Base(err).WriteToLog()
-		return nil
+		return nil, err
 	}
-	if pool != nil {
-		for _, cert := range c.Certificate {
-			if cert.Usage == Certificate_AUTHORITY_VERIFY {
-				pool.AppendCertsFromPEM(cert.Certificate)
-			}
+	c.pool = pool
+	return pool, nil
+}
+
+var rootCerts rootCertsCache
+
+func (c *Config) getCertPool() (*x509.CertPool, error) {
+	if c.DisableSystemRoot {
+		return c.loadSelfCertPool()
+	}
+
+	if len(c.Certificate) == 0 {
+		return rootCerts.load()
+	}
+
+	pool, err := x509.SystemCertPool()
+	if err != nil {
+		return nil, newError("system root").AtWarning().Base(err)
+	}
+	for _, cert := range c.Certificate {
+		if !pool.AppendCertsFromPEM(cert.Certificate) {
+			return nil, newError("append cert to root").AtWarning().Base(err)
 		}
 	}
-	return pool
+	return pool, err
 }
