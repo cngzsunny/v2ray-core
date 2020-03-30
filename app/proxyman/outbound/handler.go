@@ -13,6 +13,7 @@ import (
 	"v2ray.com/core/proxy"
 	"v2ray.com/core/transport"
 	"v2ray.com/core/transport/internet"
+	"v2ray.com/core/transport/internet/tls"
 	"v2ray.com/core/transport/pipe"
 )
 
@@ -67,12 +68,13 @@ func NewHandler(ctx context.Context, config *core.OutboundHandlerConfig) (outbou
 		return nil, newError("not an outbound handler")
 	}
 
-	if h.senderSettings != nil && h.senderSettings.MultiplexSettings != nil && h.senderSettings.MultiplexSettings.Enabled {
+	if h.senderSettings != nil && h.senderSettings.MultiplexSettings != nil {
 		config := h.senderSettings.MultiplexSettings
 		if config.Concurrency < 1 || config.Concurrency > 1024 {
 			return nil, newError("invalid mux concurrency: ", config.Concurrency).AtWarning()
 		}
 		h.mux = &mux.ClientManager{
+			Enabled: h.senderSettings.MultiplexSettings.Enabled,
 			Picker: &mux.IncrementalWorkerPicker{
 				Factory: &mux.DialingWorkerFactory{
 					Proxy:  proxyHandler,
@@ -97,7 +99,7 @@ func (h *Handler) Tag() string {
 
 // Dispatch implements proxy.Outbound.Dispatch.
 func (h *Handler) Dispatch(ctx context.Context, link *transport.Link) {
-	if h.mux != nil {
+	if h.mux != nil && (h.mux.Enabled || session.MuxPreferedFromContext(ctx)) {
 		if err := h.mux.Dispatch(ctx, link); err != nil {
 			newError("failed to process mux outbound traffic").Base(err).WriteToLog(session.ExportIDToError(ctx))
 			common.Interrupt(link.Writer)
@@ -139,7 +141,14 @@ func (h *Handler) Dial(ctx context.Context, dest net.Destination) (internet.Conn
 				downlinkReader, downlinkWriter := pipe.New(opts...)
 
 				go handler.Dispatch(ctx, &transport.Link{Reader: uplinkReader, Writer: downlinkWriter})
-				return net.NewConnection(net.ConnectionInputMulti(uplinkWriter), net.ConnectionOutputMulti(downlinkReader)), nil
+				conn := net.NewConnection(net.ConnectionInputMulti(uplinkWriter), net.ConnectionOutputMulti(downlinkReader))
+
+				if config := tls.ConfigFromStreamSettings(h.streamSettings); config != nil {
+					tlsConfig := config.GetTLSConfig(tls.WithDestination(dest), tls.WithNextProto("h2"))
+					conn = tls.Client(conn, tlsConfig)
+				}
+
+				return conn, nil
 			}
 
 			newError("failed to get outbound handler with tag: ", tag).AtWarning().WriteToLog(session.ExportIDToError(ctx))
